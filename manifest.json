@@ -1,0 +1,31 @@
+{
+  "manifest_version": 2,
+  "name": "Faster Translate",
+  "version": "1.0",
+  "description": "Quick and simple text translation",
+  "icons": {
+    "48": "src/assets/icons/icon-48.svg",
+    "96": "src/assets/icons/icon-96.svg"
+  },
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "background": {
+    "scripts": ["src/background/background.js"]
+  },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "css": ["src/content/content-styles.css"],
+    "js": ["src/content/content.js"],
+    "run_at": "document_end"
+  }],
+  "browser_action": {
+    "default_icon": "src/assets/icons/icon-48.svg",
+    "default_popup": "src/popup/popup.html"
+  },
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  }
+}
