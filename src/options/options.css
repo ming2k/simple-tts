@@ -1,0 +1,114 @@
+body {
+  font-family: Arial, sans-serif;
+  line-height: 1.5;
+  margin: 0;
+  padding: 20px;
+  background-color: #f5f5f5;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+h1 {
+  color: #0060df;
+  margin-top: 0;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #eee;
+}
+
+h2 {
+  color: #444;
+  font-size: 1.2em;
+  margin: 20px 0 10px;
+}
+
+.option-group {
+  margin-bottom: 30px;
+}
+
+.option-row {
+  margin: 15px 0;
+  display: flex;
+  align-items: center;
+}
+
+label {
+  display: inline-block;
+  min-width: 200px;
+  color: #666;
+}
+
+select {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+input[type="checkbox"] {
+  margin-right: 10px;
+}
+
+.button-row {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 2px solid #eee;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+#save {
+  background-color: #0060df;
+  color: white;
+}
+
+#save:hover {
+  background-color: #003eaa;
+}
+
+#reset {
+  background-color: #e0e0e0;
+  color: #444;
+}
+
+#reset:hover {
+  background-color: #ccc;
+}
+
+.status-message {
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 4px;
+  display: none;
+}
+
+.status-message.success {
+  display: block;
+  background-color: #e6ffe6;
+  color: #006700;
+  border: 1px solid #1a991a;
+}
+
+.status-message.error {
+  display: block;
+  background-color: #ffe6e6;
+  color: #670000;
+  border: 1px solid #991a1a;
+} 

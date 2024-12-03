@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>Faster Translate</h2>
+      <button id="openSettings" class="settings-btn">⚙️</button>
+    </div>
+    <div class="input-group">
+      <textarea id="sourceText" placeholder="Enter text to translate"></textarea>
+      <select id="targetLang">
+        <option value="en">English</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="de">German</option>
+        <option value="zh">Chinese</option>
+        <option value="ja">Japanese</option>
+      </select>
+    </div>
+    <button id="translateBtn">Translate</button>
+    <div class="result-group">
+      <textarea id="resultText" readonly></textarea>
+    </div>
+  </div>
+  <script src="./popup.js"></script>
+</body>
+</html>

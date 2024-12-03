@@ -1,0 +1,59 @@
+.faster-translate-popup {
+  position: fixed;
+  z-index: 999999;
+  background: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  border-radius: 4px;
+  font-family: Arial, sans-serif;
+  display: none;
+}
+
+.translate-icon {
+  width: 24px;
+  height: 24px;
+  background: #0060df;
+  color: white;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: bold;
+  margin: 4px;
+}
+
+.translate-result {
+  padding: 8px;
+  min-width: 200px;
+  max-width: 300px;
+  border-top: 1px solid #eee;
+}
+
+.translated-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.selection-icon {
+    cursor: pointer;
+    background: #2196F3;
+    color: white;
+    border: 2px solid #1976D2;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: 2147483647;
+    transition: transform 0.2s;
+    position: fixed;
+    font-size: 16px;
+}
+
+.selection-icon:hover {
+    transform: scale(1.1);
+    background: #1976D2;
+} 
