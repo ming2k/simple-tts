@@ -440,4 +440,141 @@ a:hover {
     opacity: 1;
   }
 }
+
+.guide-content {
+  max-width: 800px;
+}
+
+.guide-step {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #4299e1;
+}
+
+.guide-step h3 {
+  margin-top: 0;
+  color: #2c5282;
+}
+
+.guide-step ul {
+  margin: 1rem 0;
+  padding-left: 1.5rem;
+}
+
+.guide-step li {
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+
+.sponsor-content {
+  text-align: center;
+  padding: 2rem;
+}
+
+.sponsor-options {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 2rem 0;
+}
+
+.sponsor-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  border-radius: 9999px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: transform 0.1s ease-in-out;
+}
+
+.sponsor-button:hover {
+  transform: translateY(-2px);
+}
+
+.sponsor-button.github {
+  background-color: #24292e;
+  color: white;
+}
+
+.sponsor-button.coffee {
+  background-color: #ffdd00;
+  color: #000000;
+}
+
+.project-links {
+  margin-top: 2rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.project-links a {
+  color: #4a5568;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.project-links a:hover {
+  background-color: #edf2f7;
+}
+
+.chinese-payment {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #eee;
+}
+
+.chinese-payment h3 {
+  color: #2d3748;
+  margin-bottom: 1.5rem;
+}
+
+.qr-codes {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin: 1rem 0;
+}
+
+.qr-code-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qr-code {
+  width: 200px;
+  height: 200px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: transform 0.2s ease;
+}
+
+.qr-code:hover {
+  transform: scale(1.05);
+}
+
+.qr-code-container span {
+  font-size: 1rem;
+  color: #4a5568;
+}
+
+/* Responsive design for QR codes */
+@media (max-width: 600px) {
+  .qr-codes {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .qr-code {
+    width: 180px;
+    height: 180px;
+  }
+}
   

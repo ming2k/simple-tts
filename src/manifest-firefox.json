@@ -37,5 +37,10 @@
   },
   "background": {
     "scripts": ["background.js"]
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["onboarding.html"]
+    }
+  ]
 }

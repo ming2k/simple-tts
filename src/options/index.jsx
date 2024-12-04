@@ -228,6 +228,7 @@ function Options() {
             onChange={handleChange}
             className="voice-select"
           >
+            <option value="">Select a voice</option>
             {groupedVoices[selectedLocale].map(voice => (
               <option key={voice.value} value={voice.value}>
                 {voice.label}
@@ -289,12 +290,120 @@ function Options() {
     </div>
   );
 
+  const renderGuide = () => (
+    <div className="settings-section">
+      <h2>How to Use</h2>
+      <div className="guide-content">
+        <div className="guide-step">
+          <h3>1. Setup Azure Speech Service</h3>
+          <ul>
+            <li>Create an Azure account if you don't have one</li>
+            <li>Create a Speech Service resource in Azure Portal</li>
+            <li>Copy your API key and region from the resource</li>
+          </ul>
+        </div>
+        
+        <div className="guide-step">
+          <h3>2. Configure Extension</h3>
+          <ul>
+            <li>Enter your Azure API key and region in the API Settings tab</li>
+            <li>Select your preferred voice in the Voice Settings tab</li>
+            <li>Adjust speech rate and pitch to your liking</li>
+          </ul>
+        </div>
+
+        <div className="guide-step">
+          <h3>3. Using the Extension</h3>
+          <ul>
+            <li>Select any text on a webpage</li>
+            <li>Click the extension icon or use right-click menu</li>
+            <li>The selected text will be read aloud</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSponsor = () => (
+    <div className="settings-section">
+      <h2>Support the Project</h2>
+      <div className="sponsor-content">
+        <p>If you find this extension helpful, consider supporting its development!</p>
+        
+        <div className="sponsor-options">
+          <a 
+            href="https://github.com/sponsors/ming2k" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="sponsor-button github"
+          >
+            ❤️ Sponsor on GitHub
+          </a>
+          
+          <a 
+            href="https://buymeacoffee.com/mingmillenx"
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="sponsor-button coffee"
+          >
+            ☕ Buy me a coffee
+          </a>
+        </div>
+
+        <div className="chinese-payment">
+          <h3>中国用户赞助方式</h3>
+          <div className="qr-codes">
+            <div className="qr-code-container">
+              <img 
+                src="https://cdn.jsdelivr.net/gh/ming2k/img-hosting/mings-wechat-payment-pure-qrcode.png" 
+                alt="WeChat Pay QR Code" 
+                className="qr-code"
+              />
+              <span>微信支付</span>
+            </div>
+            <div className="qr-code-container">
+              <img 
+                src="https://cdn.jsdelivr.net/gh/ming2k/img-hosting/mings-alipay-payment-pure-qrcode.png" 
+                alt="Alipay QR Code" 
+                className="qr-code"
+              />
+              <span>支付宝</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="project-links">
+          <a 
+            href="https://github.com/ming2k/simple-tts" 
+            target="_blank" 
+            rel="noopener noreferrer"
+          >
+            📦 GitHub Repository
+          </a>
+          <a 
+            href="https://github.com/ming2k/simple-tts/issues" 
+            target="_blank" 
+            rel="noopener noreferrer"
+          >
+            🐛 Report Issues
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderContent = () => {
     switch (activeTab) {
       case 'api':
         return renderApiSettings();
       case 'voice':
         return renderVoiceSettings();
+      case 'guide':
+        return renderGuide();
+      case 'sponsor':
+        return renderSponsor();
+      default:
+        return renderApiSettings();
     }
   };
 
@@ -315,6 +424,18 @@ function Options() {
             onClick={() => handleTabChange('voice')}
           >
             Voice Settings
+          </button>
+          <button 
+            className={`tab-button ${activeTab === 'guide' ? 'active' : ''}`}
+            onClick={() => handleTabChange('guide')}
+          >
+            Guide
+          </button>
+          <button 
+            className={`tab-button ${activeTab === 'sponsor' ? 'active' : ''}`}
+            onClick={() => handleTabChange('sponsor')}
+          >
+            Sponsor
           </button>
         </div>
 
