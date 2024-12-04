@@ -37,23 +37,20 @@
 
 .selection-icon {
     cursor: pointer;
-    background: #2196F3;
-    color: white;
-    border: 2px solid #1976D2;
-    border-radius: 50%;
-    width: 30px;
-    height: 30px;
+    position: fixed;
+    z-index: 2147483647;
+    transition: transform 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    z-index: 2147483647;
-    transition: transform 0.2s;
-    position: fixed;
-    font-size: 16px;
+}
+
+.selection-icon img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
 }
 
 .selection-icon:hover {
-    transform: scale(1.1);
-    background: #1976D2;
+    transform: scale(1.2);
 } 
