@@ -17,7 +17,9 @@
   "permissions": [
     "storage",
     "contextMenus",
-    "https://*.tts.speech.microsoft.com/"
+    "tabs",
+    "<all_urls>",
+    "tts"
   ],
   "content_scripts": [{
     "matches": ["<all_urls>"],

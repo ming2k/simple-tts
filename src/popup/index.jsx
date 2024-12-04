@@ -114,8 +114,11 @@ function Popup() {
   useEffect(() => {
     return () => {
       if (audioPlayer) {
-        audioPlayer.audio.onended = null;
-        audioPlayer.audio.addEventListener('ended', () => {
+        const audio = audioPlayer.audio;
+        
+        audio.onended = null;
+        
+        audio.addEventListener('ended', () => {
           audioPlayer.cleanup();
         }, { once: true });
       }
