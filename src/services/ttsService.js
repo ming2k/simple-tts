@@ -32,11 +32,6 @@ export class TTSService {
 
     const ssml = this.createSSML(text);
 
-    // add debug log
-    console.log(this.baseUrl);
-    console.log(this.azureKey);
-    console.log(ssml);
-
     const response = await fetch(this.baseUrl, {
       method: 'POST',
       headers: {

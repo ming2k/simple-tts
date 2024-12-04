@@ -11,7 +11,8 @@
   "permissions": [
     "storage",
     "https://*.tts.speech.microsoft.com/",
-    "https://japanwest.tts.speech.microsoft.com/"
+    "https://japanwest.tts.speech.microsoft.com/",
+    "contextMenus"
   ],
   "host_permissions": [
     "https://*.tts.speech.microsoft.com/",
@@ -29,5 +30,8 @@
     "default_popup": "popup.html",
     "default_title": "__MSG_extName__"
   },
-  "options_page": "options.html"
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js"
+  }
 } 

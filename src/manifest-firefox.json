@@ -16,6 +16,7 @@
   },
   "permissions": [
     "storage",
+    "contextMenus",
     "https://*.tts.speech.microsoft.com/"
   ],
   "content_scripts": [{
@@ -31,5 +32,8 @@
   "options_ui": {
     "page": "options.html",
     "browser_style": true
+  },
+  "background": {
+    "scripts": ["background.js"]
   }
 }
