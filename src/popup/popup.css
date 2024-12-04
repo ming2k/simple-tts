@@ -83,6 +83,7 @@ body {
 .controls {
   display: flex;
   gap: 8px;
+  justify-content: center;
 }
 
 .voice-select {
@@ -153,4 +154,24 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a1a1a1;
+}
+
+.stop-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  background-color: #dc3545;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stop-button:hover {
+  background-color: #c82333;
+}
+
+.stop-button:active {
+  background-color: #bd2130;
 }

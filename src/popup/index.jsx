@@ -23,9 +23,10 @@ function Popup() {
   });
 
   const [ttsService, setTtsService] = useState(null);
+  const [audioPlayer, setAudioPlayer] = useState(null);
 
   useEffect(() => {
-    browser.storage.local.get(['settings', 'lastInput']).then((result) => {
+    browser.storage.local.get(['settings', 'lastInput', 'shouldAutoSpeak']).then((result) => {
       if (result.settings) {
         if (!result.settings.azureKey || !result.settings.azureRegion) {
           setStatus('Please configure Azure settings in the options page');
@@ -38,9 +39,13 @@ function Popup() {
 
       if (result.lastInput) {
         setText(result.lastInput);
+        if (result.shouldAutoSpeak && ttsService && result.lastInput) {
+          handleSpeak();
+          browser.storage.local.remove('shouldAutoSpeak');
+        }
       }
     });
-  }, []);
+  }, [ttsService]);
 
   const handleTextChange = (e) => {
     const newText = e.target.value;
@@ -59,39 +64,63 @@ function Popup() {
       return;
     }
 
-    let audioPlayer = null;
-    
     try {
       setIsSpeaking(true);
       setStatus('Generating speech...');
       
       const audioBlob = await ttsService.synthesizeSpeech(text);
-      audioPlayer = ttsService.createAudioPlayer(audioBlob);
+      const player = ttsService.createAudioPlayer(audioBlob);
+      setAudioPlayer(player);
       
-      audioPlayer.audio.onended = () => {
+      player.audio.onended = () => {
         setIsSpeaking(false);
         setStatus('');
-        audioPlayer.cleanup();
+        player.cleanup();
+        setAudioPlayer(null);
       };
 
-      audioPlayer.audio.onerror = (event) => {
+      player.audio.onerror = (event) => {
         setIsSpeaking(false);
         setStatus('Error playing audio');
-        audioPlayer.cleanup();
+        player.cleanup();
+        setAudioPlayer(null);
         console.error('Audio playback error:', event);
       };
       
       setStatus('Playing...');
-      await audioPlayer.play();
+      await player.play();
     } catch (error) {
       setStatus(`Error: ${error.message}`);
       setIsSpeaking(false);
       console.error('TTS error:', error);
       if (audioPlayer) {
         audioPlayer.cleanup();
+        setAudioPlayer(null);
       }
     }
   };
+
+  const handleStop = () => {
+    if (audioPlayer) {
+      audioPlayer.audio.pause();
+      audioPlayer.audio.currentTime = 0;
+      audioPlayer.cleanup();
+      setAudioPlayer(null);
+      setIsSpeaking(false);
+      setStatus('');
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (audioPlayer) {
+        audioPlayer.audio.onended = null;
+        audioPlayer.audio.addEventListener('ended', () => {
+          audioPlayer.cleanup();
+        }, { once: true });
+      }
+    };
+  }, [audioPlayer]);
 
   const openSettings = () => {
     browser.runtime.openOptionsPage();
@@ -131,6 +160,16 @@ function Popup() {
             <SpeakerIcon />
             {isSpeaking ? 'Speaking...' : 'Speak'}
           </button>
+
+          {isSpeaking && (
+            <button 
+              onClick={handleStop}
+              className="stop-button"
+              title="Stop speaking"
+            >
+              ⏹️
+            </button>
+          )}
         </div>
 
         {status && <div className="status">{status}</div>}

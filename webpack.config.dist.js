@@ -9,7 +9,8 @@ export default {
   mode: 'production',
   entry: {
     popup: './src/popup/index.jsx',
-    content: './src/content/index.jsx'
+    content: './src/content/index.jsx',
+    background: './src/background.js'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
