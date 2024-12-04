@@ -17,9 +17,9 @@
   "permissions": [
     "storage",
     "contextMenus",
+    "activeTab",
     "tabs",
-    "<all_urls>",
-    "tts"
+    "<all_urls>"
   ],
   "content_scripts": [{
     "matches": ["<all_urls>"],

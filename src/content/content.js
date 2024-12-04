@@ -1,5 +1,28 @@
 let selectionIcon = null;
 
+// Add message listener for background script communication
+browser.runtime.onMessage.addListener((message) => {
+    if (message.type === 'READ_TEXT') {
+        // Create an audio element and play the text
+        const ttsService = new TTSService(
+            // You'll need to get these from storage or pass them in the message
+            process.env.AZURE_KEY,
+            process.env.AZURE_REGION
+        );
+        
+        ttsService.synthesizeSpeech(message.text)
+            .then(audioBlob => {
+                const player = ttsService.createAudioPlayer(audioBlob);
+                player.play();
+                player.audio.onended = player.cleanup;
+            })
+            .catch(error => {
+                console.error('TTS Error:', error);
+                alert('Error playing text-to-speech');
+            });
+    }
+});
+
 document.addEventListener('mouseup', function(e) {
     const selection = window.getSelection();
     const selectedText = selection.toString().trim();
