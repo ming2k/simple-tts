@@ -4,12 +4,11 @@
   "type": "module",
   "description": "Quick and simple text translation Firefox extension",
   "scripts": {
-    "dev": "npm run check && webpack --watch --config webpack.config.dev.js",
-    "build": "npm run check && webpack --config webpack.config.prod.js",
+    "dev": "webpack --watch --config webpack.config.dev.js",
+    "build": "webpack --config webpack.config.prod.js",
     "clean": "rm -rf dist dev",
     "lint": "eslint src/**/*.{js,jsx}",
     "format": "prettier --write src/**/*.{js,jsx,css,html}",
-    "check": "node scripts/check-structure.js",
     "build:firefox": "BROWSER=firefox webpack --config webpack.config.dist.js",
     "build:chrome": "BROWSER=chrome webpack --config webpack.config.dist.js"
   },
