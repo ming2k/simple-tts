@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import './popup.css';
-import { TTSService } from '../services/ttsService';
+import { TTSService } from '../services/ttsService.js';
 
 function SpeakerIcon() {
   return (
@@ -17,35 +17,27 @@ function Popup() {
   const [text, setText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [status, setStatus] = useState('');
-  const [settings, setSettings] = useState({
-    azureKey: '',
-    azureRegion: ''
-  });
-
   const [ttsService, setTtsService] = useState(null);
   const [audioPlayer, setAudioPlayer] = useState(null);
 
   useEffect(() => {
-    browser.storage.local.get(['settings', 'lastInput', 'shouldAutoSpeak']).then((result) => {
+    browser.storage.local.get(['settings', 'lastInput']).then((result) => {
       if (result.settings) {
-        if (!result.settings.azureKey || !result.settings.azureRegion) {
+        const { azureKey, azureRegion } = result.settings;
+        if (!azureKey || !azureRegion) {
           setStatus('Please configure Azure settings in the options page');
+        } else {
+          setTtsService(new TTSService(azureKey, azureRegion));
         }
-        setSettings(result.settings);
-        setTtsService(new TTSService(result.settings.azureKey, result.settings.azureRegion));
       } else {
         setStatus('Please configure Azure settings in the options page');
       }
 
       if (result.lastInput) {
         setText(result.lastInput);
-        if (result.shouldAutoSpeak && ttsService && result.lastInput) {
-          handleSpeak();
-          browser.storage.local.remove('shouldAutoSpeak');
-        }
       }
     });
-  }, [ttsService]);
+  }, []);
 
   const handleTextChange = (e) => {
     const newText = e.target.value;
@@ -68,7 +60,15 @@ function Popup() {
       setIsSpeaking(true);
       setStatus('Generating speech...');
       
-      const audioBlob = await ttsService.synthesizeSpeech(text);
+      // Get current settings
+      const { settings } = await browser.storage.local.get('settings');
+      
+      const audioBlob = await ttsService.synthesizeSpeech(text, {
+        voice: settings.voice,
+        rate: settings.rate,
+        pitch: settings.pitch
+      });
+
       const player = ttsService.createAudioPlayer(audioBlob);
       setAudioPlayer(player);
       
@@ -86,6 +86,9 @@ function Popup() {
         setAudioPlayer(null);
         console.error('Audio playback error:', event);
       };
+      
+      // Apply playback rate from settings
+      player.audio.playbackRate = settings.rate || 1;
       
       setStatus('Playing...');
       await player.play();
@@ -114,19 +117,13 @@ function Popup() {
   useEffect(() => {
     return () => {
       if (audioPlayer) {
-        const audio = audioPlayer.audio;
-        
-        audio.onended = null;
-        
-        audio.addEventListener('ended', () => {
-          audioPlayer.cleanup();
-        }, { once: true });
+        audioPlayer.cleanup();
       }
     };
   }, [audioPlayer]);
 
-  const openSettings = () => {
-    browser.runtime.openOptionsPage();
+  const handleOptionsClick = () => {
+    browser.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
   };
 
   return (
@@ -137,7 +134,7 @@ function Popup() {
           <h2>Quick TTS</h2>
         </div>
         <button 
-          onClick={openSettings} 
+          onClick={handleOptionsClick} 
           className="settings-btn" 
           title="Settings"
         >
