@@ -6,7 +6,8 @@ export default ['chrome', 'firefox'].map(browser => ({
   entry: {
     popup: './src/popup/index.jsx',
     content: './src/content/index.jsx',
-    options: './src/options/index.jsx'
+    options: './src/options/index.jsx',
+    background: './src/background/index.js'
   },
   output: getOutput(browser, 'development'),
   stats: {

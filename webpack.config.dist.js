@@ -1,21 +1,17 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
-import CopyPlugin from 'copy-webpack-plugin';
+import { getOutput, getCopyPlugins } from './webpack.utils.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-export default {
+export default ['chrome', 'firefox'].map(browser => ({
   mode: 'production',
   entry: {
     popup: './src/popup/index.jsx',
     content: './src/content/index.jsx',
-    background: './src/background.js'
+    options: './src/options/index.jsx',
+    background: './src/background/menus.js'
   },
-  output: {
-    path: path.resolve(__dirname, 'dist'),
-    filename: '[name].js',
-    clean: true
+  output: getOutput(browser, 'production'),
+  stats: {
+    warnings: true,
+    errors: true
   },
   module: {
     rules: [
@@ -39,25 +35,6 @@ export default {
     extensions: ['.js', '.jsx']
   },
   plugins: [
-    new CopyPlugin({
-      patterns: [
-        { 
-          from: 'src/manifest-firefox.json',
-          to: 'manifest.json'
-        },
-        { 
-          from: 'src/assets',
-          to: 'assets'
-        },
-        { 
-          from: 'src/popup/popup.html',
-          to: 'popup.html'
-        },
-        {
-          from: 'src/_locales',
-          to: '_locales'
-        }
-      ],
-    }),
+    getCopyPlugins(browser)
   ]
-}; 
+})); 

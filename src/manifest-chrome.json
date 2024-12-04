@@ -10,13 +10,11 @@
   },
   "permissions": [
     "storage",
-    "https://*.tts.speech.microsoft.com/",
-    "https://japanwest.tts.speech.microsoft.com/",
-    "contextMenus"
+    "contextMenus",
+    "https://*.tts.speech.microsoft.com/"
   ],
   "host_permissions": [
-    "https://*.tts.speech.microsoft.com/",
-    "https://japanwest.tts.speech.microsoft.com/"
+    "https://*.tts.speech.microsoft.com/"
   ],
   "content_scripts": [{
     "matches": ["<all_urls>"],
