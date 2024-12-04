@@ -1,6 +1,16 @@
 import browser from "webextension-polyfill";
 import { TTSService } from "../services/ttsService.js";
 
+// Add this at the beginning of your background script
+browser.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install') {
+    // Open onboarding page
+    browser.tabs.create({
+      url: browser.runtime.getURL('onboarding.html')
+    });
+  }
+});
+
 // Create a context menu item when the extension is installed
 browser.runtime.onInstalled.addListener(() => {
   browser.contextMenus.create({
