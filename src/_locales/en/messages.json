@@ -1,0 +1,18 @@
+{
+  "extName": {
+    "message": "Simple TTS",
+    "description": "Name of the extension"
+  },
+  "extensionDescription": {
+    "message": "Quick and simple text-to-speech conversion",
+    "description": "Description of the extension"
+  },
+  "speakButtonText": {
+    "message": "Speak",
+    "description": "Text for speak button"
+  },
+  "settingsTitle": {
+    "message": "Settings",
+    "description": "Title for settings page"
+  }
+} 

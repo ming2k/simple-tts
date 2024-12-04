@@ -1,64 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Faster Translate Options</title>
-  <link rel="stylesheet" href="options.css">
+    <meta charset="UTF-8">
+    <title>Faster Translate Options</title>
 </head>
 <body>
-  <div class="container">
-    <h1>Faster Translate Settings</h1>
-    
-    <div class="option-group">
-      <h2>Default Translation</h2>
-      <div class="option-row">
-        <label for="targetLang">Default Target Language:</label>
-        <select id="targetLang">
-          <option value="en">English</option>
-          <option value="es">Spanish</option>
-          <option value="fr">French</option>
-          <option value="de">German</option>
-          <option value="zh">Chinese</option>
-          <option value="ja">Japanese</option>
-          <option value="ko">Korean</option>
-          <option value="ru">Russian</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="option-group">
-      <h2>Appearance</h2>
-      <div class="option-row">
-        <label for="popupPosition">Popup Position:</label>
-        <select id="popupPosition">
-          <option value="above">Above Selection</option>
-          <option value="below">Below Selection</option>
-        </select>
-      </div>
-      <div class="option-row">
-        <label>
-          <input type="checkbox" id="showIcon">
-          Show translation icon on text selection
-        </label>
-      </div>
-    </div>
-
-    <div class="option-group">
-      <h2>Shortcuts</h2>
-      <div class="option-row">
-        <label>
-          <input type="checkbox" id="enableKeyboard">
-          Enable keyboard shortcut (Ctrl+Shift+T) for translation
-        </label>
-      </div>
-    </div>
-
-    <div class="status-message" id="status"></div>
-    <div class="button-row">
-      <button id="save">Save Settings</button>
-      <button id="reset">Reset to Defaults</button>
-    </div>
-  </div>
-  <script src="options.js"></script>
+    <div id="root"></div>
+    <script src="options.js"></script>
 </body>
 </html> 

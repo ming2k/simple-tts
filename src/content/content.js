@@ -21,8 +21,8 @@ document.addEventListener('mouseup', function(e) {
         selectionIcon = document.createElement('div');
         selectionIcon.className = 'selection-icon';
         
-        // Simplified icon for testing
-        selectionIcon.innerHTML = '🔍'; // Using emoji instead of image for initial testing
+        // Use the SVG icon instead of emoji
+        selectionIcon.innerHTML = `<img src="${chrome.runtime.getURL('src/assets/icons/icon-48.svg')}" width="20" height="20">`;
         
         // Position the icon near the selected text
         selectionIcon.style.position = 'fixed';
