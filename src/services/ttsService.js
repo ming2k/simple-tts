@@ -5,11 +5,15 @@ export class TTSService {
     this.baseUrl = `https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
   }
 
-  createSSML(text) {
+  createSSML(text, voice = 'en-US-AvaMultilingualNeural', rate = 1, pitch = 1) {
     const escapedText = this.escapeXmlChars(text);
-    return `<speak version='1.0' xml:lang='en-US'>
-    <voice xml:lang='en-US' xml:gender='Female' name='en-US-AvaMultilingualNeural'>
-        ${escapedText}
+    const lang = voice.split('-').slice(0, 2).join('-');
+    
+    return `<speak version='1.0' xml:lang='${lang}'>
+    <voice xml:lang='${lang}' name='${voice}'>
+        <prosody rate="${rate}" pitch="${pitch}%">
+            ${escapedText}
+        </prosody>
     </voice>
 </speak>`.trim();
   }
@@ -25,12 +29,25 @@ export class TTSService {
     return text.replace(/[<>&'"]/g, char => xmlChars[char] || char);
   }
 
-  async synthesizeSpeech(text) {
+  async synthesizeSpeech(text, settings = {}) {
+
+    // console.log(settings);
+
     if (!this.azureKey || !this.azureRegion) {
       throw new Error('Azure credentials not configured');
     }
 
-    const ssml = this.createSSML(text);
+    // Convert pitch from 0.5-2 range to -50 to +50 percentage range
+    const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+    
+    const ssml = this.createSSML(
+      text,
+      settings.voice,
+      settings.rate || 1,
+      pitchPercent
+    );
+
+    console.log(ssml);
 
     const response = await fetch(this.baseUrl, {
       method: 'POST',
@@ -60,5 +77,43 @@ export class TTSService {
       play: () => audio.play(),
       cleanup: () => URL.revokeObjectURL(audioUrl)
     };
+  }
+
+  async getVoicesList() {
+    if (!this.azureKey || !this.azureRegion) {
+      throw new Error('Azure credentials not configured');
+    }
+
+    const response = await fetch(
+      `https://${this.azureRegion}.tts.speech.microsoft.com/cognitiveservices/voices/list`,
+      {
+        headers: {
+          'Ocp-Apim-Subscription-Key': this.azureKey
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch voices (${response.status})`);
+    }
+
+    const voices = await response.json();
+    
+    // Group voices by locale
+    const groupedVoices = voices.reduce((acc, voice) => {
+      const group = acc[voice.LocaleName] || [];
+      group.push({
+        value: voice.ShortName,
+        label: `${voice.DisplayName} (${voice.Gender})`,
+        locale: voice.Locale,
+        gender: voice.Gender,
+        styles: voice.StyleList || [],
+        isMultilingual: !!voice.SecondaryLocaleList
+      });
+      acc[voice.LocaleName] = group;
+      return acc;
+    }, {});
+
+    return groupedVoices;
   }
 } 
