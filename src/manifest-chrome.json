@@ -11,10 +11,12 @@
   "permissions": [
     "storage",
     "contextMenus",
+    "activeTab",
     "https://*.tts.speech.microsoft.com/"
   ],
   "host_permissions": [
-    "https://*.tts.speech.microsoft.com/"
+    "https://*.tts.speech.microsoft.com/",
+    "<all_urls>"
   ],
   "content_scripts": [{
     "matches": ["<all_urls>"],
