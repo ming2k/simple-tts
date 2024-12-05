@@ -18,11 +18,16 @@ browser.runtime.onInstalled.addListener(async (details) => {
     // Save settings to storage
     await browser.storage.local.set({ settings: defaultSettings });
     
-    // Instead of opening onboarding page, set badge to indicate setup needed
+    // Set badge to indicate setup needed
     if (!process.env.AZURE_SPEECH_KEY || !process.env.AZURE_REGION) {
       browser.browserAction.setBadgeText({ text: '!' });
       browser.browserAction.setBadgeBackgroundColor({ color: '#F59E0B' });
     }
+
+    // Immediately open onboarding page in a new tab
+    browser.tabs.create({
+      url: browser.runtime.getURL('onboarding.html')
+    });
   }
 });
 
