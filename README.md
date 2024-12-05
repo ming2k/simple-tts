@@ -1,6 +1,6 @@
-# Faster Translate
+# Simple TTS
 
-A Firefox extension focused on providing quick and simple text translations.
+A Firefox extension focused on providing quick and simple text to speech.
 
 ## TTS Service Provider Support
 

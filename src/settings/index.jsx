@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
-import './options.css';
+import './settings.css';
 import { TTSService } from '../services/ttsService';
 
 function EyeIcon({ isVisible }) {

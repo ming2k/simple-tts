@@ -1,21 +1,20 @@
 {
-  "name": "faster-translate",
+  "name": "simple-tts",
   "version": "1.0.0",
   "type": "module",
   "description": "Quick and simple text translation Firefox extension",
   "scripts": {
     "dev": "webpack --watch --config webpack.config.dev.js",
-    "build": "webpack --config webpack.config.prod.js",
+    "build": "webpack --config webpack.config.dist.js",
     "clean": "rm -rf dist dev",
     "lint": "eslint src/**/*.{js,jsx}",
-    "format": "prettier --write src/**/*.{js,jsx,css,html}",
-    "build:firefox": "BROWSER=firefox webpack --config webpack.config.dist.js",
-    "build:chrome": "BROWSER=chrome webpack --config webpack.config.dist.js"
+    "format": "prettier --write src/**/*.{js,jsx,css,html}"
   },
   "dependencies": {
     "loglevel": "^1.9.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "styled-components": "^6.1.13",
     "webextension-polyfill": "^0.12.0"
   },
   "devDependencies": {
@@ -25,6 +24,7 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "babel-loader": "^9.1.3",
+    "babel-plugin-styled-components": "^2.1.4",
     "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.8.1",
     "eslint": "^8.57.0",

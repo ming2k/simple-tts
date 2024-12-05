@@ -24,9 +24,13 @@ export const getCopyPlugins = (browser) => {
         from: 'src/popup/popup.html',
         to: 'popup.html'
       },
+      { 
+        from: 'src/onboarding/onboarding.html',
+        to: 'onboarding.html'
+      },
       {
-        from: 'src/options/options.html',
-        to: 'options.html'
+        from: 'src/settings/settings.html',
+        to: 'settings.html'
       },
       {
         from: 'src/_locales',

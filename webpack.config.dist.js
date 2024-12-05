@@ -4,9 +4,9 @@ export default ['chrome', 'firefox'].map(browser => ({
   mode: 'production',
   entry: {
     popup: './src/popup/index.jsx',
-    content: './src/content/index.jsx',
-    options: './src/options/index.jsx',
-    background: './src/background/menus.js'
+    settings: './src/settings/index.jsx',
+    onboarding: './src/onboarding/index.js',
+    background: './src/background/index.js'
   },
   output: getOutput(browser, 'production'),
   stats: {
@@ -21,7 +21,15 @@ export default ['chrome', 'firefox'].map(browser => ({
         use: {
           loader: 'babel-loader',
           options: {
-            presets: ['@babel/preset-env', '@babel/preset-react']
+            presets: ['@babel/preset-env', '@babel/preset-react'],
+            plugins: [
+              ['babel-plugin-styled-components', {
+                displayName: false,
+                fileName: false,
+                minify: true,
+                pure: true
+              }]
+            ]
           }
         }
       },
@@ -36,5 +44,8 @@ export default ['chrome', 'firefox'].map(browser => ({
   },
   plugins: [
     getCopyPlugins(browser)
-  ]
+  ],
+  optimization: {
+    minimize: true
+  }
 })); 
