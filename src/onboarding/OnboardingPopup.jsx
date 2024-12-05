@@ -107,11 +107,7 @@ const steps = [
   },
   {
     title: 'Get Azure Key 🔑',
-    content: '1. Visit the Azure Voice Gallery at speech.microsoft.com/portal/voicegallery\n2. Sign in or create a free Microsoft account\n3. Once logged in, you\'ll get your API key and region'
-  },
-  {
-    title: 'Configure Azure ⚙️',
-    content: 'Enter your Azure API key and region below to enable text-to-speech functionality.'
+    content: 'Enter your Azure Speech key and region below. You can get these from Azure Portal.'
   },
   {
     title: 'Using Simple TTS 🎯',
@@ -130,7 +126,7 @@ export function OnboardingPopup() {
   const [error, setError] = useState('');
 
   const handleNext = async () => {
-    if (currentStep === 3) {
+    if (currentStep === 2) {
       // Validate Azure credentials before proceeding
       if (!azureKey || !azureRegion) {
         setError('Please enter both Azure key and region');
@@ -175,12 +171,10 @@ export function OnboardingPopup() {
     setCurrentStep(prev => prev - 1);
   };
 
-  const handleVoiceGalleryClick = () => {
-    if (currentStep === 2) {
-      browser.tabs.create({
-        url: 'https://speech.microsoft.com/portal/voicegallery'
-      });
-    }
+  const handleDocsClick = () => {
+    browser.tabs.create({
+      url: browser.runtime.getURL('settings.html#guide')
+    });
   };
 
   const progress = ((currentStep - 1) / (steps.length - 1)) * 100;
@@ -200,20 +194,6 @@ export function OnboardingPopup() {
           <p>{step.content}</p>
           
           {currentStep === 2 && (
-            <p>
-              <a 
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleVoiceGalleryClick();
-                }}
-              >
-                Click here to open Azure Voice Gallery →
-              </a>
-            </p>
-          )}
-
-          {currentStep === 3 && (
             <>
               <InputGroup>
                 <label htmlFor="azureKey">Azure Speech Key:</label>
@@ -238,6 +218,18 @@ export function OnboardingPopup() {
               </InputGroup>
 
               {error && <ErrorMessage>{error}</ErrorMessage>}
+
+              <p>
+                <a 
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleDocsClick();
+                  }}
+                >
+                  Need help? Check our setup guide →
+                </a>
+              </p>
             </>
           )}
         </StepContainer>
