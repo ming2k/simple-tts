@@ -2,12 +2,27 @@ import browser from "webextension-polyfill";
 import { TTSService } from "../services/ttsService.js";
 
 // Add this at the beginning of your background script
-browser.runtime.onInstalled.addListener((details) => {
+browser.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
-    // Open onboarding page
-    browser.tabs.create({
-      url: browser.runtime.getURL('onboarding.html')
-    });
+    // Initialize settings with environment variables
+    const defaultSettings = {
+      voice: 'zh-CN-XiaoxiaoNeural',
+      rate: 1,
+      pitch: 1,
+      azureKey: process.env.AZURE_SPEECH_KEY || '',
+      azureRegion: process.env.AZURE_REGION || '',
+      showKey: false,
+      onboardingCompleted: false
+    };
+
+    // Save settings to storage
+    await browser.storage.local.set({ settings: defaultSettings });
+    
+    // Instead of opening onboarding page, set badge to indicate setup needed
+    if (!process.env.AZURE_SPEECH_KEY || !process.env.AZURE_REGION) {
+      browser.browserAction.setBadgeText({ text: '!' });
+      browser.browserAction.setBadgeBackgroundColor({ color: '#F59E0B' });
+    }
   }
 });
 

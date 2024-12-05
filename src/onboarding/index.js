@@ -70,20 +70,20 @@ const BackButton = styled(Button)`
 
 const steps = [
   {
-    title: 'Welcome to Quick TTS! 👋',
+    title: 'Welcome to Simple TTS! 👋',
     content: "Convert any text to natural-sounding speech with just a few clicks. Let's get you set up!"
   },
   {
     title: 'Azure Configuration ⚙️',
-    content: 'To use Quick TTS, you\'ll need to configure your Azure credentials. Click the Settings button to enter your Azure key and region.'
+    content: 'To use Simple TTS, you\'ll need to configure your Azure credentials. Click the Settings button to enter your Azure key and region.'
   },
   {
-    title: 'Using Quick TTS 🎯',
+    title: 'Using Simple TTS 🎯',
     content: 'Simply paste or type your text, then click the Speak button. You can adjust voice, speed, and pitch in the settings.'
   },
   {
     title: "You're Ready! 🎉",
-    content: "That's it! You can now start converting text to speech. Click Get Started to begin using Quick TTS."
+    content: "That's it! You can now start converting text to speech. Click Get Started to begin using Simple TTS."
   }
 ];
 
@@ -104,11 +104,6 @@ function Onboarding() {
     setCurrentStep(prev => prev - 1);
   };
 
-  const handleOpenOptions = () => {
-    if (currentStep === 2) { // Azure Configuration step
-      browser.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
-    }
-  };
 
   const progress = ((currentStep - 1) / (steps.length - 1)) * 100;
 
@@ -122,7 +117,6 @@ function Onboarding() {
         <StepContainer 
           key={index + 1}
           isActive={currentStep === index + 1}
-          onClick={currentStep === 2 ? handleOpenOptions : undefined}
         >
           <h1>{step.title}</h1>
           <p>{step.content}</p>

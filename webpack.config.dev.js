@@ -1,4 +1,14 @@
 import { getOutput, getCopyPlugins } from './webpack.utils.js';
+import webpack from 'webpack';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load environment variables from .env file
+const env = dotenv.config().parsed || {};
 
 export default ['chrome', 'firefox'].map(browser => ({
   mode: 'development',
@@ -10,10 +20,6 @@ export default ['chrome', 'firefox'].map(browser => ({
     background: './src/background/index.js'
   },
   output: getOutput(browser, 'development'),
-  stats: {
-    warnings: true,
-    errors: true
-  },
   module: {
     rules: [
       {
@@ -22,13 +28,7 @@ export default ['chrome', 'firefox'].map(browser => ({
         use: {
           loader: 'babel-loader',
           options: {
-            presets: ['@babel/preset-env', '@babel/preset-react'],
-            plugins: [
-              ['babel-plugin-styled-components', {
-                displayName: true,
-                fileName: false
-              }]
-            ]
+            presets: ['@babel/preset-env', '@babel/preset-react']
           }
         }
       },
@@ -42,6 +42,10 @@ export default ['chrome', 'firefox'].map(browser => ({
     extensions: ['.js', '.jsx']
   },
   plugins: [
+    new webpack.DefinePlugin({
+      'process.env.AZURE_SPEECH_KEY': JSON.stringify(env.AZURE_SPEECH_KEY || ''),
+      'process.env.AZURE_REGION': JSON.stringify(env.AZURE_REGION || '')
+    }),
     getCopyPlugins(browser)
   ]
 }));
