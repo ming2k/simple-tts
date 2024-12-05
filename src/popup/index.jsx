@@ -37,11 +37,11 @@ function Popup() {
   const [status, setStatus] = useState('');
   const [ttsService, setTtsService] = useState(null);
   const [audioPlayer, setAudioPlayer] = useState(null);
-  const [showOnboarding, setShowOnboarding] = useState(true);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
 
   useEffect(() => {
     browser.storage.local.get(['onboardingCompleted', 'settings', 'lastInput']).then((result) => {
-      setShowOnboarding(!result.onboardingCompleted);
+      setOnboardingCompleted(result.onboardingCompleted || false);
       
       if (result.settings) {
         const { azureKey, azureRegion } = result.settings;
@@ -50,8 +50,6 @@ function Popup() {
         } else {
           setTtsService(new TTSService(azureKey, azureRegion));
         }
-      } else {
-        setStatus('Please configure Azure settings in the options page');
       }
 
       if (result.lastInput) {
@@ -144,26 +142,59 @@ function Popup() {
   }, [audioPlayer]);
 
   const handleOptionsClick = () => {
-    // Open settings page in new tab
     browser.tabs.create({ url: 'settings.html' });
-    // browser.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
   };
 
-  if (showOnboarding) {
-    return <OnboardingPopup />;
+  const handleSetupClick = () => {
+    browser.tabs.create({ url: browser.runtime.getURL('onboarding.html') });
+  };
+
+  // Show hint if onboarding isn't completed
+  if (!onboardingCompleted) {
+    return (
+      <div className="popup-container">
+        <header className="header">
+          <div className="title">
+            <SpeakerIcon />
+            <h2>Simple TTS</h2>
+          </div>
+          <button 
+            onClick={handleOptionsClick} 
+            className="settings-btn" 
+            title="Settings"
+            style={{ marginLeft: '8px' }}
+          >
+            <SettingsIcon />
+          </button>
+        </header>
+
+        <div className="setup-needed">
+          <h2>Complete Setup First</h2>
+          <p>Please complete the setup process to start using Simple TTS.</p>
+          <button 
+            className="primary-button"
+            onClick={handleSetupClick}
+          >
+            Complete Setup
+          </button>
+        </div>
+      </div>
+    );
   }
 
+  // Main interface when onboarding is completed
   return (
     <div className="popup-container">
       <header className="header">
         <div className="title">
           <SpeakerIcon />
-          <h2>Quick TTS</h2>
+          <h2>Simple TTS</h2>
         </div>
         <button 
           onClick={handleOptionsClick} 
           className="settings-btn" 
           title="Settings"
+          style={{ marginLeft: '8px' }}
         >
           <SettingsIcon />
         </button>
@@ -178,7 +209,7 @@ function Popup() {
           className="text-input"
         />
 
-        <div className="controls">
+        <div className="controls" style={{ display: 'flex', justifyContent: 'center' }}>
           <button 
             onClick={isSpeaking ? handleStop : handleSpeak}
             className={`primary-button ${isSpeaking ? 'speaking' : ''}`}

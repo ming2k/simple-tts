@@ -64,7 +64,29 @@ function Options() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    // Get initial tab from URL hash or storage
+    const hash = window.location.hash.slice(1);
+    const validTabs = ['api', 'voice', 'guide', 'sponsor'];
+    const initialTab = validTabs.includes(hash) ? hash : 'api';
+    
     browser.storage.local.get(['settings', 'optionsActiveTab']).then(async (result) => {
+      setActiveTab(initialTab);
+      
+      // Initialize settings with environment variables if no stored settings
+      if (!result.settings) {
+        const defaultSettings = {
+          voice: 'zh-CN-XiaoxiaoNeural',
+          rate: 1,
+          pitch: 1,
+          azureKey: process.env.AZURE_SPEECH_KEY || '',
+          azureRegion: process.env.AZURE_REGION || '',
+          showKey: false
+        };
+        setSettings(defaultSettings);
+      } else {
+        setSettings(result.settings);
+      }
+      
       if (result.settings) {
         setSettings(result.settings);
         
@@ -133,6 +155,8 @@ function Options() {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
+    // Update URL hash when tab changes
+    window.location.hash = tab;
     browser.storage.local.set({ optionsActiveTab: tab });
   };
 
@@ -359,7 +383,7 @@ function Options() {
                 alt="WeChat Pay QR Code" 
                 className="qr-code"
               />
-              <span>微信支付</span>
+              <span>微支付</span>
             </div>
             <div className="qr-code-container">
               <img 
@@ -412,32 +436,48 @@ function Options() {
       <h1>{browser.i18n.getMessage('settingsTitle')}</h1>
       
       <div className="settings-layout">
-        <div className="settings-tabs">
-          <button 
+        <nav className="settings-tabs">
+          <a 
+            href="#api"
             className={`tab-button ${activeTab === 'api' ? 'active' : ''}`}
-            onClick={() => handleTabChange('api')}
+            onClick={(e) => {
+              e.preventDefault();
+              handleTabChange('api');
+            }}
           >
             API Settings
-          </button>
-          <button 
+          </a>
+          <a 
+            href="#voice"
             className={`tab-button ${activeTab === 'voice' ? 'active' : ''}`}
-            onClick={() => handleTabChange('voice')}
+            onClick={(e) => {
+              e.preventDefault();
+              handleTabChange('voice');
+            }}
           >
             Voice Settings
-          </button>
-          <button 
+          </a>
+          <a 
+            href="#guide"
             className={`tab-button ${activeTab === 'guide' ? 'active' : ''}`}
-            onClick={() => handleTabChange('guide')}
+            onClick={(e) => {
+              e.preventDefault();
+              handleTabChange('guide');
+            }}
           >
             Guide
-          </button>
-          <button 
+          </a>
+          <a 
+            href="#sponsor"
             className={`tab-button ${activeTab === 'sponsor' ? 'active' : ''}`}
-            onClick={() => handleTabChange('sponsor')}
+            onClick={(e) => {
+              e.preventDefault();
+              handleTabChange('sponsor');
+            }}
           >
             Sponsor
-          </button>
-        </div>
+          </a>
+        </nav>
 
         <div className="settings-content">
           {renderContent()}

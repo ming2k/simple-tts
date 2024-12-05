@@ -339,33 +339,54 @@ a:hover {
 .settings-tabs {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   background: #f5f5f5;
   padding: 8px;
   border-radius: 8px;
 }
 
 .tab-button {
+  display: block;
   padding: 12px 16px;
   text-align: left;
   background: #ffffff;
   border: 1px solid #e0e0e0;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  color: #666;
-  transition: all 0.2s;
+  color: #4b5563;
+  text-decoration: none;
+  transition: all 0.2s ease;
 }
 
 .tab-button:hover {
-  background: #f8f8f8;
-  border-color: #2196F3;
+  background: #f8f9fa;
+  border-color: #2563eb;
+  color: #2563eb;
 }
 
 .tab-button.active {
-  background: #2196F3;
+  background: #2563eb;
   color: white;
-  border-color: #2196F3;
+  border-color: #2563eb;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .settings-tabs {
+    flex-direction: row;
+    background: none;
+    padding: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-button {
+    flex: 1;
+    white-space: nowrap;
+    text-align: center;
+    padding: 8px 16px;
+  }
 }
 
 .region-select {
@@ -376,19 +397,6 @@ a:hover {
   margin-top: 32px;
   padding-top: 16px;
   border-top: 1px solid #eee;
-}
-
-/* Update responsive styles */
-@media (max-width: 768px) {
-  .settings-tabs {
-    background: none;
-    padding: 0;
-  }
-  
-  .tab-button {
-    flex: 1;
-    text-align: center;
-  }
 }
 
 .region-input {
