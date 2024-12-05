@@ -5,8 +5,8 @@ export default ['chrome', 'firefox'].map(browser => ({
   devtool: 'source-map',
   entry: {
     popup: './src/popup/index.jsx',
-    content: './src/content/index.jsx',
-    options: './src/options/index.jsx',
+    settings: './src/settings/index.jsx',
+    onboarding: './src/onboarding/index.js',
     background: './src/background/index.js'
   },
   output: getOutput(browser, 'development'),
@@ -22,7 +22,13 @@ export default ['chrome', 'firefox'].map(browser => ({
         use: {
           loader: 'babel-loader',
           options: {
-            presets: ['@babel/preset-env', '@babel/preset-react']
+            presets: ['@babel/preset-env', '@babel/preset-react'],
+            plugins: [
+              ['babel-plugin-styled-components', {
+                displayName: true,
+                fileName: false
+              }]
+            ]
           }
         }
       },

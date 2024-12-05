@@ -30,7 +30,6 @@
     "default_popup": "popup.html",
     "default_title": "__MSG_extName__"
   },
-  "options_page": "options.html",
   "background": {
     "service_worker": "background.js"
   }
