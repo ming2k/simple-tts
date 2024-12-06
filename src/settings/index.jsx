@@ -72,7 +72,7 @@ function Settings() {
   useEffect(() => {
     // Get initial tab from URL hash or storage
     const hash = window.location.hash.slice(1);
-    const validTabs = ['api', 'voice', 'guide', 'sponsor'];
+    const validTabs = ['api', 'voice', 'document', 'sponsor'];
     const initialTab = validTabs.includes(hash) ? hash : 'api';
     
     browser.storage.local.get(['settings', 'optionsActiveTab']).then(async (result) => {
@@ -189,7 +189,7 @@ function Settings() {
             voicesError={voicesError}
           />
         );
-      case 'guide':
+      case 'document':
         return <Document />;
       case 'sponsor':
         return <Sponsor />;
