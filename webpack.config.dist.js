@@ -1,8 +1,12 @@
 import { getOutput, getCopyPlugins } from './webpack.utils.js';
-import TerserPlugin from 'terser-webpack-plugin';
+import webpack from 'webpack';
 
-export default ['chrome', 'firefox'].map(browser => ({
+// Get target browser from environment variable
+const browsers = process.env.BROWSERS ? process.env.BROWSERS.split(',') : ['firefox'];
+
+const configs = browsers.map(browser => ({
   mode: 'production',
+  devtool: 'source-map',
   entry: {
     popup: './src/popup/index.jsx',
     settings: './src/settings/index.jsx',
@@ -10,10 +14,6 @@ export default ['chrome', 'firefox'].map(browser => ({
     background: './src/background/index.js'
   },
   output: getOutput(browser, 'production'),
-  stats: {
-    warnings: true,
-    errors: true
-  },
   module: {
     rules: [
       {
@@ -22,15 +22,7 @@ export default ['chrome', 'firefox'].map(browser => ({
         use: {
           loader: 'babel-loader',
           options: {
-            presets: ['@babel/preset-env', '@babel/preset-react'],
-            plugins: [
-              ['babel-plugin-styled-components', {
-                displayName: false,
-                fileName: false,
-                minify: true,
-                pure: true
-              }]
-            ]
+            presets: ['@babel/preset-env', '@babel/preset-react']
           }
         }
       },
@@ -44,32 +36,13 @@ export default ['chrome', 'firefox'].map(browser => ({
     extensions: ['.js', '.jsx']
   },
   plugins: [
+    new webpack.DefinePlugin({
+      'process.env.NODE_ENV': JSON.stringify('production'),
+      'process.env.AZURE_SPEECH_KEY': JSON.stringify(''),
+      'process.env.AZURE_REGION': JSON.stringify('')
+    }),
     getCopyPlugins(browser)
-  ],
-  optimization: {
-    minimize: true,
-    minimizer: [
-      new TerserPlugin({
-        terserOptions: {
-          compress: {
-            drop_console: true,
-            pure_funcs: ['console.log', 'console.info']
-          },
-          format: {
-            comments: false
-          }
-        },
-        extractComments: false
-      })
-    ],
-    splitChunks: {
-      chunks: 'all'
-    }
-  },
-  performance: {
-    hints: 'warning',
-    maxEntrypointSize: 512000,
-    maxAssetSize: 512000
-  },
-  devtool: false
-})); 
+  ]
+}));
+
+export default configs.length === 1 ? configs[0] : configs;

@@ -16,18 +16,28 @@ browser.runtime.onInstalled.addListener(async (details) => {
     };
 
     // Save settings to storage
-    await browser.storage.local.set({ settings: defaultSettings });
+    await browser.storage.local.set({ 
+      settings: defaultSettings,
+      // Set separate onboarding flag
+      onboardingCompleted: false
+    });
     
-    // Set badge to indicate setup needed
-    if (!process.env.AZURE_SPEECH_KEY || !process.env.AZURE_REGION) {
+    // Set badge to indicate setup needed if no Azure credentials
+    if (!defaultSettings.azureKey || !defaultSettings.azureRegion) {
       browser.browserAction.setBadgeText({ text: '!' });
       browser.browserAction.setBadgeBackgroundColor({ color: '#F59E0B' });
     }
 
-    // Immediately open onboarding page in a new tab
-    browser.tabs.create({
-      url: browser.runtime.getURL('onboarding.html')
-    });
+    // Check if we're in development mode
+    if (process.env.NODE_ENV === 'development' && defaultSettings.azureKey && defaultSettings.azureRegion) {
+      // In dev mode with credentials, mark onboarding as completed
+      await browser.storage.local.set({ onboardingCompleted: true });
+    } else {
+      // In production or dev without credentials, open onboarding
+      browser.tabs.create({
+        url: browser.runtime.getURL('onboarding.html')
+      });
+    }
   }
 });
 
