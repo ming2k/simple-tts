@@ -4,9 +4,15 @@
   "type": "module",
   "description": "Quick and simple text translation Firefox extension",
   "scripts": {
-    "dev": "webpack --watch --config webpack.config.dev.js",
-    "build": "webpack --config webpack.config.dist.js",
+    "dev": "cross-env BROWSERS=firefox,chrome webpack --watch --config webpack.config.dev.js",
+    "dev:firefox": "cross-env BROWSERS=firefox webpack --watch --config webpack.config.dev.js",
+    "dev:chrome": "cross-env BROWSERS=chrome webpack --watch --config webpack.config.dev.js",
+    "build": "cross-env BROWSERS=firefox,chrome webpack --config webpack.config.dist.js",
+    "build:firefox": "cross-env BROWSERS=firefox webpack --config webpack.config.dist.js",
+    "build:chrome": "cross-env BROWSERS=chrome webpack --config webpack.config.dist.js",
     "clean": "rm -rf dist dev",
+    "clean:firefox": "rm -rf dist/firefox dev/firefox",
+    "clean:chrome": "rm -rf dist/chrome dev/chrome",
     "lint": "eslint src/**/*.{js,jsx}",
     "format": "prettier --write src/**/*.{js,jsx,css,html}"
   },
@@ -35,6 +41,7 @@
     "style-loader": "^3.3.3",
     "terser-webpack-plugin": "^5.3.10",
     "webpack": "^5.97.0",
-    "webpack-cli": "^5.1.4"
+    "webpack-cli": "^5.1.4",
+    "cross-env": "^7.0.3"
   }
 }

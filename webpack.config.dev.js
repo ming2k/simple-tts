@@ -1,16 +1,14 @@
 import { getOutput, getCopyPlugins } from './webpack.utils.js';
 import webpack from 'webpack';
 import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 // Load environment variables from .env file
 const env = dotenv.config().parsed || {};
 
-export default ['chrome', 'firefox'].map(browser => ({
+// Get target browser from environment variable
+const browsers = process.env.BROWSERS ? process.env.BROWSERS.split(',') : ['firefox'];
+
+const configs = browsers.map(browser => ({
   mode: 'development',
   devtool: 'source-map',
   entry: {
@@ -43,9 +41,12 @@ export default ['chrome', 'firefox'].map(browser => ({
   },
   plugins: [
     new webpack.DefinePlugin({
+      'process.env.NODE_ENV': JSON.stringify('development'),
       'process.env.AZURE_SPEECH_KEY': JSON.stringify(env.AZURE_SPEECH_KEY || ''),
       'process.env.AZURE_REGION': JSON.stringify(env.AZURE_REGION || '')
     }),
     getCopyPlugins(browser)
   ]
 }));
+
+export default configs.length === 1 ? configs[0] : configs;
