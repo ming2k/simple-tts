@@ -1,8 +1,21 @@
 import browser from "webextension-polyfill";
 import { TTSService } from "../services/ttsService.js";
 
-// Add this at the beginning of your background script
+// Single onInstalled listener to handle both installation and context menu
 browser.runtime.onInstalled.addListener(async (details) => {
+  // Always create context menu regardless of install reason
+  try {
+    await browser.contextMenus.removeAll(); // Clean up any existing menu items
+    await browser.contextMenus.create({
+      id: "translate-selected-text",
+      title: "Read selected text",
+      contexts: ["selection"],
+    });
+  } catch (error) {
+    console.error('Failed to create context menu:', error);
+  }
+
+  // Handle first installation
   if (details.reason === 'install') {
     // Initialize settings with environment variables
     const defaultSettings = {
@@ -18,7 +31,6 @@ browser.runtime.onInstalled.addListener(async (details) => {
     // Save settings to storage
     await browser.storage.local.set({ 
       settings: defaultSettings,
-      // Set separate onboarding flag
       onboardingCompleted: false
     });
     
@@ -30,24 +42,13 @@ browser.runtime.onInstalled.addListener(async (details) => {
 
     // Check if we're in development mode
     if (process.env.NODE_ENV === 'development' && defaultSettings.azureKey && defaultSettings.azureRegion) {
-      // In dev mode with credentials, mark onboarding as completed
       await browser.storage.local.set({ onboardingCompleted: true });
     } else {
-      // In production or dev without credentials, open onboarding
       browser.tabs.create({
         url: browser.runtime.getURL('onboarding.html')
       });
     }
   }
-});
-
-// Create a context menu item when the extension is installed
-browser.runtime.onInstalled.addListener(() => {
-  browser.contextMenus.create({
-    id: "translate-selected-text",
-    title: "Read selected text",
-    contexts: ["selection"],
-  });
 });
 
 // Listen for messages from popup to open options
