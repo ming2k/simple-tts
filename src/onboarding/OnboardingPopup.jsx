@@ -67,7 +67,11 @@ export function OnboardingPopup() {
         onboardingCompleted: true
       };
 
-      await browser.storage.local.set({ settings: newSettings });
+      await Promise.all([
+        browser.storage.local.set({ settings: newSettings }),
+        browser.storage.local.set({ onboardingCompleted: true })
+      ]);
+      
       return true;
     } catch (err) {
       console.error('Settings save error:', err);

@@ -12,10 +12,6 @@ export const getManifestPath = (browser) => {
 export const getCopyPlugins = (browser) => {
   return new CopyPlugin({
     patterns: [
-      {
-        from: 'public',
-        to: `dist/${browser}`,
-      },
       { 
         from: getManifestPath(browser),
         to: 'manifest.json'

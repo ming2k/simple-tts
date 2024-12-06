@@ -6,7 +6,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
     // Initialize settings with environment variables
     const defaultSettings = {
-      voice: 'zh-CN-XiaoxiaoNeural',
+      voice: 'en-US-AvaMultilingualNeural',
       rate: 1,
       pitch: 1,
       azureKey: process.env.AZURE_SPEECH_KEY || '',
