@@ -49,7 +49,7 @@ export function Navigation({ activeTab, onTabChange }) {
   const tabs = [
     { id: 'api', label: 'API Settings' },
     { id: 'voice', label: 'Voice Settings' },
-    { id: 'guide', label: 'Guide' },
+    { id: 'document', label: 'Document' },
     { id: 'sponsor', label: 'Sponsor' }
   ];
 
