@@ -12,7 +12,7 @@ const Bar = styled.div`
 
 const Progress = styled.div`
   height: 100%;
-  width: ${props => props.percentage}%;
+  width: ${props => props.$percentage}%;
   background: #2563eb;
   transition: width 0.3s ease;
 `;
@@ -20,7 +20,7 @@ const Progress = styled.div`
 export function ProgressBar({ percentage }) {
   return (
     <Bar>
-      <Progress percentage={percentage} />
+      <Progress $percentage={percentage} />
     </Bar>
   );
 } 
