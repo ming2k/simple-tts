@@ -25,7 +25,7 @@ const Button = styled.button`
 const BackButton = styled(Button)`
   background: #f3f4f6;
   color: #4b5563;
-  visibility: ${props => props.show ? 'visible' : 'hidden'};
+  visibility: ${props => props.$show ? 'visible' : 'hidden'};
 
   &:hover:not(:disabled) {
     background: #e5e7eb;
@@ -41,18 +41,21 @@ const NextButton = styled(Button)`
   }
 `;
 
-export function NavigationButtons({ currentStep, totalSteps, onBack, onNext }) {
+export function NavigationButtons({ currentStep, totalSteps, onBack, onNext, isLoading }) {
   return (
     <ButtonContainer>
       <BackButton 
-        show={currentStep > 1} 
+        $show={currentStep > 1} 
         onClick={onBack}
-        disabled={currentStep === 1}
+        disabled={currentStep === 1 || isLoading}
       >
         Back
       </BackButton>
-      <NextButton onClick={onNext}>
-        {currentStep === totalSteps ? 'Get Started' : 'Next'}
+      <NextButton 
+        onClick={onNext}
+        disabled={isLoading}
+      >
+        {isLoading ? 'Validating...' : currentStep === totalSteps ? 'Get Started' : 'Next'}
       </NextButton>
     </ButtonContainer>
   );

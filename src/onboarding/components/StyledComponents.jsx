@@ -23,7 +23,7 @@ export const ErrorMessage = styled.div`
 `;
 
 export const StepContainer = styled.div`
-  display: ${props => props.isActive ? 'block' : 'none'};
+  display: ${props => props.$isActive ? 'block' : 'none'};
   animation: fadeIn 0.5s;
 
   @keyframes fadeIn {
