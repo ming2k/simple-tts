@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
+import { SettingsContainer, SettingsLayout, SettingsContent } from './components/Layout';
+import { Navigation } from './components/Navigation';
+import { ApiSettings } from './components/ApiSettings';
+import { Document } from './components/Document';
+import { Sponsor } from './components/Sponsor';
 import './settings.css';
 import { TTSService } from '../services/ttsService';
+import { VoiceSettings } from './components/VoiceSettings';
 
 function EyeIcon({ isVisible }) {
   return (
@@ -48,7 +54,7 @@ function CheckmarkIcon() {
   );
 }
 
-function Options() {
+function Settings() {
   const [activeTab, setActiveTab] = useState('api');
   const [voicesError, setVoicesError] = useState('');
   const [settings, setSettings] = useState({
@@ -160,332 +166,50 @@ function Options() {
     browser.storage.local.set({ optionsActiveTab: tab });
   };
 
-  const renderApiSettings = () => (
-    <div className="settings-section">
-      <h2>API Settings</h2>
-      <div className="setting-item">
-        <label htmlFor="azureKey">Azure Speech Key:</label>
-        <div className="password-input-container">
-          <input
-            type={settings.showKey ? "text" : "password"}
-            id="azureKey"
-            name="azureKey"
-            value={settings.azureKey}
-            onChange={handleChange}
-            placeholder="Enter your Azure Speech key"
-            className="azure-input"
-          />
-          <button 
-            onClick={toggleKeyVisibility}
-            className="toggle-visibility"
-            type="button"
-            title={settings.showKey ? "Hide key" : "Show key"}
-          >
-            <EyeIcon isVisible={settings.showKey} />
-          </button>
-        </div>
-      </div>
-
-      <div className="setting-item">
-        <label htmlFor="azureRegion">Azure Region:</label>
-        <div className="region-input">
-          <input
-            type="text"
-            id="azureRegion"
-            name="azureRegion"
-            value={settings.azureRegion}
-            onChange={handleChange}
-            placeholder="e.g., japanwest"
-            className="azure-input"
-            list="azure-regions"
-          />
-        </div>
-      </div>
-
-      <div className="button-container">
-        <button 
-          onClick={handleSave} 
-          className={`save-button ${isSaving ? 'saving' : ''}`}
-          disabled={isSaving}
-        >
-          {isSaving ? (
-            <span className="save-success">
-              Saved <CheckmarkIcon />
-            </span>
-          ) : 'Save API Settings'}
-        </button>
-      </div>
-    </div>
-  );
-
-  const renderVoiceSettings = () => (
-    <div className="settings-section">
-      <h2>Azure Voice Settings</h2>
-      <div className="setting-item">
-        <label htmlFor="voiceLocale">Region:</label>
-        {voicesError ? (
-          <div className="error-message">{voicesError}</div>
-        ) : (
-          <select 
-            id="voiceLocale"
-            value={selectedLocale}
-            onChange={(e) => setSelectedLocale(e.target.value)}
-            className="voice-select"
-          >
-            <option value="">Select a region</option>
-            {Object.keys(groupedVoices).sort().map(locale => (
-              <option key={locale} value={locale}>
-                {locale}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
-      {selectedLocale && (
-        <div className="setting-item">
-          <label htmlFor="voice">Voice:</label>
-          <select 
-            id="voice"
-            name="voice"
-            value={settings.voice}
-            onChange={handleChange}
-            className="voice-select"
-          >
-            <option value="">Select a voice</option>
-            {groupedVoices[selectedLocale].map(voice => (
-              <option key={voice.value} value={voice.value}>
-                {voice.label}
-                {voice.isMultilingual ? ' (Multilingual)' : ''}
-                {voice.styles.length > 0 ? ' (Styles available)' : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div className="setting-item slider-container">
-        <label htmlFor="rate">Speed:</label>
-        <div className="slider-with-value">
-          <input
-            type="range"
-            id="rate"
-            name="rate"
-            min="0.5"
-            max="2"
-            step="0.1"
-            value={settings.rate}
-            onChange={handleChange}
-          />
-          <span className="slider-value">{settings.rate}x</span>
-        </div>
-      </div>
-
-      <div className="setting-item slider-container">
-        <label htmlFor="pitch">Pitch:</label>
-        <div className="slider-with-value">
-          <input
-            type="range"
-            id="pitch"
-            name="pitch"
-            min="0.5"
-            max="2"
-            step="0.1"
-            value={settings.pitch}
-            onChange={handleChange}
-          />
-          <span className="slider-value">{settings.pitch}x</span>
-        </div>
-      </div>
-
-      <div className="button-container">
-        <button 
-          onClick={handleSave} 
-          className={`save-button ${isSaving ? 'saving' : ''}`}
-          disabled={isSaving}
-        >
-          {isSaving ? (
-            <span className="save-success">
-              Saved <CheckmarkIcon />
-            </span>
-          ) : 'Save Voice Settings'}
-        </button>
-      </div>
-    </div>
-  );
-
-  const renderGuide = () => (
-    <div className="settings-section">
-      <h2>How to Use</h2>
-      <div className="guide-content">
-        <div className="guide-step">
-          <h3>1. Setup Azure Speech Service</h3>
-          <ul>
-            <li>Create an Azure account if you don't have one</li>
-            <li>Create a Speech Service resource in Azure Portal</li>
-            <li>Copy your API key and region from the resource</li>
-          </ul>
-        </div>
-        
-        <div className="guide-step">
-          <h3>2. Configure Extension</h3>
-          <ul>
-            <li>Enter your Azure API key and region in the API Settings tab</li>
-            <li>Select your preferred voice in the Voice Settings tab</li>
-            <li>Adjust speech rate and pitch to your liking</li>
-          </ul>
-        </div>
-
-        <div className="guide-step">
-          <h3>3. Using the Extension</h3>
-          <ul>
-            <li>Select any text on a webpage</li>
-            <li>Click the extension icon or use right-click menu</li>
-            <li>The selected text will be read aloud</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderSponsor = () => (
-    <div className="settings-section">
-      <h2>Support the Project</h2>
-      <div className="sponsor-content">
-        <p>If you find this extension helpful, consider supporting its development!</p>
-        
-        <div className="sponsor-options">
-          <a 
-            href="https://github.com/sponsors/ming2k" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="sponsor-button github"
-          >
-            ❤️ Sponsor on GitHub
-          </a>
-          
-          <a 
-            href="https://buymeacoffee.com/mingmillenx"
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="sponsor-button coffee"
-          >
-            ☕ Buy me a coffee
-          </a>
-        </div>
-
-        <div className="chinese-payment">
-          <h3>中国用户赞助方式</h3>
-          <div className="qr-codes">
-            <div className="qr-code-container">
-              <img 
-                src="https://cdn.jsdelivr.net/gh/ming2k/img-hosting/mings-wechat-payment-pure-qrcode.png" 
-                alt="WeChat Pay QR Code" 
-                className="qr-code"
-              />
-              <span>微支付</span>
-            </div>
-            <div className="qr-code-container">
-              <img 
-                src="https://cdn.jsdelivr.net/gh/ming2k/img-hosting/mings-alipay-payment-pure-qrcode.png" 
-                alt="Alipay QR Code" 
-                className="qr-code"
-              />
-              <span>支付宝</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="project-links">
-          <a 
-            href="https://github.com/ming2k/simple-tts" 
-            target="_blank" 
-            rel="noopener noreferrer"
-          >
-            📦 GitHub Repository
-          </a>
-          <a 
-            href="https://github.com/ming2k/simple-tts/issues" 
-            target="_blank" 
-            rel="noopener noreferrer"
-          >
-            🐛 Report Issues
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-
   const renderContent = () => {
     switch (activeTab) {
       case 'api':
-        return renderApiSettings();
+        return (
+          <ApiSettings 
+            settings={settings}
+            onChange={handleChange}
+            onSave={handleSave}
+            isSaving={isSaving}
+          />
+        );
       case 'voice':
-        return renderVoiceSettings();
+        return (
+          <VoiceSettings 
+            settings={settings}
+            selectedLocale={selectedLocale}
+            groupedVoices={groupedVoices}
+            onChange={handleChange}
+            onSave={handleSave}
+            isSaving={isSaving}
+            voicesError={voicesError}
+          />
+        );
       case 'guide':
-        return renderGuide();
+        return <Document />;
       case 'sponsor':
-        return renderSponsor();
+        return <Sponsor />;
       default:
-        return renderApiSettings();
+        return null;
     }
   };
 
   return (
-    <div className="options-container">
+    <SettingsContainer>
       <h1>{browser.i18n.getMessage('settingsTitle')}</h1>
-      
-      <div className="settings-layout">
-        <nav className="settings-tabs">
-          <a 
-            href="#api"
-            className={`tab-button ${activeTab === 'api' ? 'active' : ''}`}
-            onClick={(e) => {
-              e.preventDefault();
-              handleTabChange('api');
-            }}
-          >
-            API Settings
-          </a>
-          <a 
-            href="#voice"
-            className={`tab-button ${activeTab === 'voice' ? 'active' : ''}`}
-            onClick={(e) => {
-              e.preventDefault();
-              handleTabChange('voice');
-            }}
-          >
-            Voice Settings
-          </a>
-          <a 
-            href="#guide"
-            className={`tab-button ${activeTab === 'guide' ? 'active' : ''}`}
-            onClick={(e) => {
-              e.preventDefault();
-              handleTabChange('guide');
-            }}
-          >
-            Guide
-          </a>
-          <a 
-            href="#sponsor"
-            className={`tab-button ${activeTab === 'sponsor' ? 'active' : ''}`}
-            onClick={(e) => {
-              e.preventDefault();
-              handleTabChange('sponsor');
-            }}
-          >
-            Sponsor
-          </a>
-        </nav>
-
-        <div className="settings-content">
+      <SettingsLayout>
+        <Navigation activeTab={activeTab} onTabChange={handleTabChange} />
+        <SettingsContent>
           {renderContent()}
-        </div>
-      </div>
-    </div>
+        </SettingsContent>
+      </SettingsLayout>
+    </SettingsContainer>
   );
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<Options />); 
+root.render(<Settings />); 
