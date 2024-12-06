@@ -1,4 +1,5 @@
 import { getOutput, getCopyPlugins } from './webpack.utils.js';
+import TerserPlugin from 'terser-webpack-plugin';
 
 export default ['chrome', 'firefox'].map(browser => ({
   mode: 'production',
@@ -46,6 +47,29 @@ export default ['chrome', 'firefox'].map(browser => ({
     getCopyPlugins(browser)
   ],
   optimization: {
-    minimize: true
-  }
+    minimize: true,
+    minimizer: [
+      new TerserPlugin({
+        terserOptions: {
+          compress: {
+            drop_console: true,
+            pure_funcs: ['console.log', 'console.info']
+          },
+          format: {
+            comments: false
+          }
+        },
+        extractComments: false
+      })
+    ],
+    splitChunks: {
+      chunks: 'all'
+    }
+  },
+  performance: {
+    hints: 'warning',
+    maxEntrypointSize: 512000,
+    maxAssetSize: 512000
+  },
+  devtool: false
 })); 
