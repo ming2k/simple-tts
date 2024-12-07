@@ -3,7 +3,7 @@ import { SpeakerIcon } from './Icons';
 
 export function Status({ message, isPlaying }) {
   if (!message && !isPlaying) {
-    return <div className="status-placeholder" />;
+    return null;
   }
   
   if (isPlaying) {

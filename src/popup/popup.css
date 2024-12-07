@@ -2,7 +2,7 @@ body {
   margin: 0;
   padding: 0;
   width: 400px;
-  min-height: 300px;
+  min-height: 200px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
   background: #ffffff;
 }
@@ -12,9 +12,10 @@ body {
   padding: 12px;
   background: #ffffff;
   box-sizing: border-box;
-  min-height: 240px;
+  min-height: 200px;
   display: flex;
   flex-direction: column;
+  transition: min-height 0.2s ease-in-out;
 }
 
 .header {
@@ -66,7 +67,8 @@ body {
   width: 100%;
   box-sizing: border-box;
   flex: 1;
-  min-height: 180px;
+  min-height: 140px;
+  transition: min-height 0.2s ease-in-out;
 }
 
 .text-input {
@@ -75,8 +77,8 @@ body {
   border: 1px solid #ddd;
   border-radius: 8px;
   resize: vertical;
-  min-height: 100px;
-  max-height: 200px;
+  min-height: 80px;
+  max-height: 160px;
   font-size: 14px;
   line-height: 1.5;
   transition: border-color 0.2s ease;
@@ -134,7 +136,6 @@ body {
   border-radius: 6px;
   font-size: 13px;
   color: #4b5563;
-  margin-top: auto;
   min-height: 36px;
   display: flex;
   align-items: center;
@@ -269,6 +270,13 @@ body {
 }
 
 .status-placeholder {
-  min-height: 36px;
-  margin-top: auto;
+  display: none;
+}
+
+.popup-container.has-status {
+  min-height: 240px;
+}
+
+.content.has-status {
+  min-height: 180px;
 }
