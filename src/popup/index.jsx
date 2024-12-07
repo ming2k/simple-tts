@@ -194,9 +194,9 @@ function Popup() {
   }
 
   return (
-    <div className="popup-container">
+    <div className={`popup-container ${(status || isSpeaking) ? 'has-status' : ''}`}>
       <Header onOptionsClick={handleOptionsClick} />
-      <main className="content">
+      <main className={`content ${(status || isSpeaking) ? 'has-status' : ''}`}>
         <TextInput 
           value={text}
           onChange={handleTextChange}
