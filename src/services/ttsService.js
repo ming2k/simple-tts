@@ -3,6 +3,15 @@ export class TTSService {
     this.azureKey = azureKey;
     this.azureRegion = azureRegion;
     this.baseUrl = `https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
+    this.maxCharsPerRequest = 1000;
+    this.currentAudio = null;
+  }
+
+  // Split text into sentences
+  splitIntoSentences(text) {
+    // Split on period, question mark, or exclamation mark followed by space or newline
+    const sentences = text.match(/[^.!?]+[.!?]+[\s\n]*/g) || [text];
+    return sentences.map(s => s.trim()).filter(s => s.length > 0);
   }
 
   createSSML(text, voice = 'en-US-AvaMultilingualNeural', rate = 1, pitch = 1) {
@@ -10,12 +19,12 @@ export class TTSService {
     const lang = voice.split('-').slice(0, 2).join('-');
     
     return `<speak version='1.0' xml:lang='${lang}'>
-    <voice xml:lang='${lang}' name='${voice}'>
-        <prosody rate="${rate}" pitch="${pitch}%">
-            ${escapedText}
-        </prosody>
-    </voice>
-</speak>`.trim();
+      <voice xml:lang='${lang}' name='${voice}'>
+          <prosody rate="${rate}" pitch="${pitch}%">
+              ${escapedText}
+          </prosody>
+      </voice>
+    </speak>`.trim();
   }
 
   escapeXmlChars(text) {
@@ -29,25 +38,18 @@ export class TTSService {
     return text.replace(/[<>&'"]/g, char => xmlChars[char] || char);
   }
 
-  async synthesizeSpeech(text, settings = {}) {
-
-    // console.log(settings);
-
+  async synthesizeSingleChunk(text, settings = {}) {
     if (!this.azureKey || !this.azureRegion) {
       throw new Error('Azure credentials not configured');
     }
 
-    // Convert pitch from 0.5-2 range to -50 to +50 percentage range
     const pitchPercent = ((settings.pitch || 1) - 1) * 100;
-    
     const ssml = this.createSSML(
       text,
       settings.voice,
       settings.rate || 1,
       pitchPercent
     );
-
-    console.log(ssml);
 
     const response = await fetch(this.baseUrl, {
       method: 'POST',
@@ -66,6 +68,57 @@ export class TTSService {
     }
 
     return response.blob();
+  }
+
+  async synthesizeSpeech(text, settings = {}) {
+    // Split text into sentences
+    const sentences = this.splitIntoSentences(text);
+    
+    // Stop any currently playing audio
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio = null;
+    }
+
+    // Start all API requests in parallel
+    const audioPromises = sentences.map(sentence => 
+      this.synthesizeSingleChunk(sentence, settings)
+    );
+
+    // Play chunks sequentially as they become ready
+    for (let i = 0; i < sentences.length; i++) {
+      try {
+        // Wait for the next chunk to be ready
+        const audioBlob = await audioPromises[i];
+        // Play it
+        await this.playAudioChunk(audioBlob, settings.rate || 1);
+      } catch (error) {
+        console.error(`Error processing chunk ${i}:`, error);
+        throw error;
+      }
+    }
+  }
+
+  async playAudioChunk(audioBlob, rate = 1) {
+    return new Promise((resolve, reject) => {
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      
+      this.currentAudio = audio;
+      audio.playbackRate = rate;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        resolve();
+      };
+
+      audio.onerror = (error) => {
+        URL.revokeObjectURL(audioUrl);
+        reject(error);
+      };
+
+      audio.play().catch(reject);
+    });
   }
 
   createAudioPlayer(audioBlob) {

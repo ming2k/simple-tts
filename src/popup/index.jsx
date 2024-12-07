@@ -82,43 +82,19 @@ function Popup() {
       // Get current settings
       const { settings } = await browser.storage.local.get('settings');
       
-      const audioBlob = await ttsService.synthesizeSpeech(text, {
+      // Let ttsService handle the audio playback
+      await ttsService.synthesizeSpeech(text, {
         voice: settings.voice,
         rate: settings.rate,
         pitch: settings.pitch
       });
 
-      const player = ttsService.createAudioPlayer(audioBlob);
-      setAudioPlayer(player);
-      
-      player.audio.onended = () => {
-        setIsSpeaking(false);
-        setStatus('');
-        player.cleanup();
-        setAudioPlayer(null);
-      };
-
-      player.audio.onerror = (event) => {
-        setIsSpeaking(false);
-        setStatus('Error playing audio');
-        player.cleanup();
-        setAudioPlayer(null);
-        console.error('Audio playback error:', event);
-      };
-      
-      // Apply playback rate from settings
-      player.audio.playbackRate = settings.rate || 1;
-      
-      setStatus('Playing...');
-      await player.play();
+      setIsSpeaking(false);
+      setStatus('');
     } catch (error) {
       setStatus(`Error: ${error.message}`);
       setIsSpeaking(false);
       console.error('TTS error:', error);
-      if (audioPlayer) {
-        audioPlayer.cleanup();
-        setAudioPlayer(null);
-      }
     }
   };
 
