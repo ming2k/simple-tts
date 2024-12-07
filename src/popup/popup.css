@@ -1,17 +1,20 @@
 body {
   margin: 0;
   padding: 0;
-  width: 280px;
-  min-height: 200px;
+  width: 400px;
+  min-height: 300px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
   background: #ffffff;
 }
 
 .popup-container {
-  width: 280px;
-  padding: 8px;
+  width: 400px;
+  padding: 12px;
   background: #ffffff;
   box-sizing: border-box;
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
@@ -62,6 +65,8 @@ body {
   gap: 12px;
   width: 100%;
   box-sizing: border-box;
+  flex: 1;
+  min-height: 180px;
 }
 
 .text-input {
@@ -70,11 +75,13 @@ body {
   border: 1px solid #ddd;
   border-radius: 8px;
   resize: vertical;
-  min-height: 80px;
+  min-height: 100px;
+  max-height: 200px;
   font-size: 14px;
   line-height: 1.5;
   transition: border-color 0.2s ease;
   box-sizing: border-box;
+  flex: 1;
 }
 
 .text-input:focus {
@@ -87,6 +94,7 @@ body {
   display: flex;
   justify-content: center;
   margin: 8px 0;
+  padding: 4px 0;
 }
 
 .primary-button {
@@ -126,6 +134,10 @@ body {
   border-radius: 6px;
   font-size: 13px;
   color: #4b5563;
+  margin-top: auto;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
 }
 
 .status.error {
@@ -220,4 +232,43 @@ body {
 
 .setup-btn:hover {
   background: #1d4ed8;
+}
+
+/* Add these new styles */
+@keyframes ellipsis {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+  100% { content: ''; }
+}
+
+.status.playing {
+  color: #2563eb;
+  background: #eff6ff;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status.playing::after {
+  content: '';
+  animation: ellipsis 1.5s infinite;
+  width: 16px;
+  display: inline-block;
+}
+
+.status.playing svg {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.status-placeholder {
+  min-height: 36px;
+  margin-top: auto;
 }
