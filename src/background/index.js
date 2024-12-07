@@ -1,9 +1,8 @@
 import browser from "webextension-polyfill";
 import { TTSService } from "../services/ttsService.js";
 
-// Single onInstalled listener to handle both installation and context menu
-browser.runtime.onInstalled.addListener(async (details) => {
-  // Always create context menu regardless of install reason
+// Separate function to create context menu
+async function createContextMenu() {
   try {
     await browser.contextMenus.removeAll(); // Clean up any existing menu items
     await browser.contextMenus.create({
@@ -14,6 +13,15 @@ browser.runtime.onInstalled.addListener(async (details) => {
   } catch (error) {
     console.error('Failed to create context menu:', error);
   }
+}
+
+// Create context menu when extension starts
+createContextMenu();
+
+// Keep the onInstalled listener for other initialization tasks
+browser.runtime.onInstalled.addListener(async (details) => {
+  // Create context menu on install/update
+  await createContextMenu();
 
   // Handle first installation
   if (details.reason === 'install') {
