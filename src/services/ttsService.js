@@ -70,7 +70,7 @@ export class TTSService {
     return response.blob();
   }
 
-  async synthesizeSpeech(text, settings = {}) {
+  async synthesizeSpeech(text, settings = {}, handlePlayback = false) {
     // Split text into sentences
     const sentences = this.splitIntoSentences(text);
     
@@ -80,22 +80,57 @@ export class TTSService {
       this.currentAudio = null;
     }
 
-    // Start all API requests in parallel
-    const audioPromises = sentences.map(sentence => 
-      this.synthesizeSingleChunk(sentence, settings)
-    );
+    // If handlePlayback is true, play the audio internally
+    if (handlePlayback) {
+      // Start all API requests in parallel
+      const audioPromises = sentences.map(sentence => 
+        this.synthesizeSingleChunk(sentence, settings)
+      );
 
-    // Play chunks sequentially as they become ready
-    for (let i = 0; i < sentences.length; i++) {
-      try {
-        // Wait for the next chunk to be ready
-        const audioBlob = await audioPromises[i];
-        // Play it
-        await this.playAudioChunk(audioBlob, settings.rate || 1);
-      } catch (error) {
-        console.error(`Error processing chunk ${i}:`, error);
-        throw error;
+      // Play chunks sequentially as they become ready
+      for (let i = 0; i < sentences.length; i++) {
+        try {
+          // Wait for the next chunk to be ready
+          const audioBlob = await audioPromises[i];
+          // Play it
+          await this.playAudioChunk(audioBlob, settings.rate || 1);
+        } catch (error) {
+          console.error(`Error processing chunk ${i}:`, error);
+          throw error;
+        }
       }
+      return;
+    }
+
+    // Otherwise, return a single audio blob
+    try {
+      if (sentences.length === 1) {
+        return await this.synthesizeSingleChunk(text, settings);
+      }
+
+      // For multiple sentences, combine the audio blobs
+      const audioBlobs = await Promise.all(
+        sentences.map(sentence => this.synthesizeSingleChunk(sentence, settings))
+      );
+
+      // Combine all blobs into one
+      const audioArrays = await Promise.all(
+        audioBlobs.map(blob => blob.arrayBuffer())
+      );
+      
+      const totalLength = audioArrays.reduce((acc, arr) => acc + arr.byteLength, 0);
+      const combinedArray = new Uint8Array(totalLength);
+      
+      let offset = 0;
+      audioArrays.forEach(array => {
+        combinedArray.set(new Uint8Array(array), offset);
+        offset += array.byteLength;
+      });
+
+      return new Blob([combinedArray], { type: 'audio/mp3' });
+    } catch (error) {
+      console.error('Speech synthesis failed:', error);
+      throw error;
     }
   }
 
