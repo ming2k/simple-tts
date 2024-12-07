@@ -72,7 +72,6 @@ browser.runtime.onMessage.addListener((message) => {
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "translate-selected-text" && info.selectionText) {
     try {
-      // Get settings from storage
       const { settings } = await browser.storage.local.get('settings');
       console.log('Retrieved settings:', settings);
 
@@ -81,37 +80,100 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       
       const ttsService = new TTSService(settings.azureKey, settings.azureRegion);
-      const audioBlob = await ttsService.synthesizeSpeech(info.selectionText, {
-        voice: settings.voice,
-        rate: settings.rate,
-        pitch: settings.pitch
-      });
       
-      // Convert blob to array buffer for transfer
+      let audioBlob;
+      try {
+        audioBlob = await ttsService.synthesizeSpeech(info.selectionText, {
+          voice: settings.voice,
+          rate: settings.rate,
+          pitch: settings.pitch
+        });
+        
+        if (!audioBlob) {
+          throw new Error('Speech synthesis returned null or undefined');
+        }
+      } catch (synthError) {
+        console.error('Speech synthesis failed:', synthError);
+        throw synthError;
+      }
+      
+      // Store the audio element reference globally so we can stop it later
       const arrayBuffer = await audioBlob.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
       
+      // Add a message listener to handle stop requests
+      const messageListener = (request) => {
+        if (request.type === 'STOP_AUDIO') {
+          browser.tabs.executeScript(tab.id, {
+            code: `
+              const audioElements = document.querySelectorAll('audio[data-tts-audio="true"]');
+              audioElements.forEach(audio => {
+                audio.pause();
+                audio.currentTime = 0;
+                URL.revokeObjectURL(audio.src);
+                audio.remove();
+              });
+            `
+          });
+          browser.runtime.onMessage.removeListener(messageListener);
+        }
+      };
+      
+      browser.runtime.onMessage.addListener(messageListener);
+      
       // Inject code to create and play audio
-      browser.tabs.executeScript(tab.id, {
+      await browser.tabs.executeScript(tab.id, {
         code: `
           (async () => {
-            const uint8Array = new Uint8Array([${uint8Array.toString()}]);
-            const blob = new Blob([uint8Array], { type: 'audio/mp3' });
-            const audioUrl = URL.createObjectURL(blob);
-            const audio = new Audio(audioUrl);
-            audio.playbackRate = ${settings.rate || 1};
-            audio.style.display = 'none';
-            document.body.appendChild(audio);
-            await audio.play();
-            audio.onended = () => {
-              URL.revokeObjectURL(audioUrl);
-              audio.remove();
-            };
+            try {
+              const uint8Array = new Uint8Array([${uint8Array.toString()}]);
+              const blob = new Blob([uint8Array], { type: 'audio/mp3' });
+              const audioUrl = URL.createObjectURL(blob);
+              const audio = new Audio(audioUrl);
+              audio.setAttribute('data-tts-audio', 'true');
+              audio.playbackRate = ${settings.rate || 1};
+              audio.style.display = 'none';
+              document.body.appendChild(audio);
+              await audio.play();
+              audio.onended = () => {
+                URL.revokeObjectURL(audioUrl);
+                audio.remove();
+              };
+            } catch (error) {
+              console.error('Error playing audio:', error);
+            }
           })();
         `
       });
     } catch (error) {
       console.error('TTS error:', error);
+      browser.notifications.create({
+        type: 'basic',
+        iconUrl: browser.runtime.getURL('icon-48.png'),
+        title: 'Text-to-Speech Error',
+        message: `Failed to convert text to speech: ${error.message}`
+      });
     }
+  }
+});
+
+// Add a message listener for stopping audio from any source
+browser.runtime.onMessage.addListener((request) => {
+  if (request.type === 'STOP_ALL_AUDIO') {
+    browser.tabs.query({}).then(tabs => {
+      tabs.forEach(tab => {
+        browser.tabs.executeScript(tab.id, {
+          code: `
+            const audioElements = document.querySelectorAll('audio[data-tts-audio="true"]');
+            audioElements.forEach(audio => {
+              audio.pause();
+              audio.currentTime = 0;
+              URL.revokeObjectURL(audio.src);
+              audio.remove();
+            });
+          `
+        }).catch(err => console.error('Failed to stop audio in tab:', err));
+      });
+    });
   }
 });

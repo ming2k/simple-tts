@@ -1,7 +1,38 @@
 import React from 'react';
 import { Section, InputGroup, SaveButton } from './common';
+import styled from 'styled-components';
+
+const SliderContainer = styled.div`
+  margin: 16px 0;
+`;
+
+const SliderWithValue = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`;
+
+const SliderValue = styled.span`
+  min-width: 40px;
+  text-align: right;
+`;
+
+const Slider = styled.input`
+  flex: 1;
+  width: 100%;
+`;
 
 export function VoiceSettings({ settings, selectedLocale, groupedVoices, onChange, onSave, isSaving, voicesError }) {
+  const handleSliderChange = (e) => {
+    const { name, value } = e.target;
+    onChange({
+      target: {
+        name,
+        value: parseFloat(value)
+      }
+    });
+  };
+
   return (
     <Section>
       <h2>Voice Settings</h2>
@@ -45,6 +76,40 @@ export function VoiceSettings({ settings, selectedLocale, groupedVoices, onChang
               </select>
             </InputGroup>
           )}
+
+          <SliderContainer>
+            <label htmlFor="rate">Speed:</label>
+            <SliderWithValue>
+              <Slider
+                type="range"
+                id="rate"
+                name="rate"
+                min="0.5"
+                max="2"
+                step="0.1"
+                value={settings.rate}
+                onChange={handleSliderChange}
+              />
+              <SliderValue>{settings.rate}x</SliderValue>
+            </SliderWithValue>
+          </SliderContainer>
+
+          <SliderContainer>
+            <label htmlFor="pitch">Pitch:</label>
+            <SliderWithValue>
+              <Slider
+                type="range"
+                id="pitch"
+                name="pitch"
+                min="0.5"
+                max="2"
+                step="0.1"
+                value={settings.pitch}
+                onChange={handleSliderChange}
+              />
+              <SliderValue>{settings.pitch}x</SliderValue>
+            </SliderWithValue>
+          </SliderContainer>
         </>
       )}
       <SaveButton onClick={onSave} $saving={isSaving}>
