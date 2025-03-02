@@ -131,6 +131,7 @@ function Settings() {
             onChange={handleChange}
             onSave={handleSave}
             isSaving={isSaving}
+            onTabChange={handleTabChange}
           />
         );
       case 'voice':

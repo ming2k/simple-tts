@@ -35,6 +35,50 @@ const Container = styled.div`
   margin: 0 auto;
 `;
 
+const Header = styled.div`
+  margin-bottom: 24px;
+`;
+
+const HeaderTitle = styled.h2`
+  margin: 0 0 8px 0;
+`;
+
+const HeaderDescription = styled.p`
+  color: #6b7280;
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+`;
+
+const DocumentLink = styled.a`
+  color: #2563eb;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+const InfoBox = styled.div`
+  background: #f0f9ff;
+  border-left: 4px solid #2563eb;
+  padding: 12px 16px;
+  margin: 24px 0;
+  border-radius: 4px;
+  color: #1e40af;
+  font-size: 0.9rem;
+  line-height: 1.5;
+`;
+
 const InputWrapper = styled.div`
   position: relative;
   display: flex;
@@ -153,7 +197,7 @@ function ApiInput({
 }
 
 // Main Component
-export function ApiSettings({ settings, onChange, onSave, isSaving }) {
+export function ApiSettings({ settings, onChange, onSave, isSaving, onTabChange }) {
   const handleToggleVisibility = () => {
     onChange({
       target: {
@@ -167,9 +211,12 @@ export function ApiSettings({ settings, onChange, onSave, isSaving }) {
   return (
     <Section>
       <Container>
-        <h2>API Settings</h2>
+        <Header>
+          <HeaderTitle>API Settings</HeaderTitle>
+        </Header>
+
         <ApiInput
-          label="Azure Speech Key:"
+          label="Azure Speech Key"
           id="azureKey"
           type={settings.showKey ? "text" : "password"}
           value={settings.azureKey}
@@ -182,7 +229,7 @@ export function ApiSettings({ settings, onChange, onSave, isSaving }) {
         />
 
         <ApiInput
-          label="Azure Region:"
+          label="Azure Region"
           id="azureRegion"
           value={settings.azureRegion}
           onChange={onChange}

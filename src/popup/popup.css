@@ -9,7 +9,7 @@ body {
 
 .popup-container {
   width: 100%;
-  padding: 8px;
+  padding: 4px 8px;
   background: #ffffff;
   box-sizing: border-box;
   height: 220px;
@@ -23,13 +23,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 8px;
+  padding: 2px 8px;
   background-color: transparent;
   border-bottom: 1px solid #e5e7eb;
   margin-bottom: 0;
   width: 100%;
   box-sizing: border-box;
-  height: 40px;
+  height: 36px;
 }
 
 .title {
