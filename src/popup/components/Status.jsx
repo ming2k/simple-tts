@@ -1,5 +1,5 @@
 import React from 'react';
-import { SpeakerIcon } from './Icons';
+import { Volume2 } from 'react-feather';
 
 export function Status({ message, isPlaying }) {
   if (!message && !isPlaying) {
@@ -9,15 +9,15 @@ export function Status({ message, isPlaying }) {
   if (isPlaying) {
     return (
       <div className="status playing">
-        <SpeakerIcon />
-        Playing
+        <Volume2 size={16} />
+        <span>Playing</span>
       </div>
     );
   }
   
   return (
     <div className={`status ${message.toLowerCase().includes('error') ? 'error' : ''}`}>
-      {message}
+      <span>{message}</span>
     </div>
   );
 } 

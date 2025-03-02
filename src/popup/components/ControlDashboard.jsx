@@ -1,7 +1,7 @@
 import React from 'react';
-import { SpeakerIcon, StopIcon } from './Icons';
+import { Volume2, Square } from 'react-feather';
 
-export function Controls({ onSpeak, onStop, isSpeaking, disabled }) {
+export function ControlDashboard({ onSpeak, onStop, isSpeaking, disabled }) {
   const handleClick = () => {
     if (isSpeaking) {
       onStop();
@@ -19,13 +19,13 @@ export function Controls({ onSpeak, onStop, isSpeaking, disabled }) {
       >
         {isSpeaking ? (
           <>
-            <StopIcon />
-            Stop
+            <Square size={16} />
+            <span>Stop</span>
           </>
         ) : (
           <>
-            <SpeakerIcon />
-            Speak
+            <Volume2 size={16} />
+            <span>Speak</span>
           </>
         )}
       </button>

@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { TTSService } from '../services/ttsService.js';
 import { Header } from './components/Header';
 import { TextInput } from './components/TextInput';
-import { Controls } from './components/Controls';
+import { ControlDashboard } from './components/ControlDashboard.jsx';
 import { Status } from './components/Status';
 import { SetupNeeded } from './components/SetupNeeded';
 import './popup.css';
@@ -197,21 +197,27 @@ function Popup() {
     <div className={`popup-container ${(status || isSpeaking) ? 'has-status' : ''}`}>
       <Header onOptionsClick={handleOptionsClick} />
       <main className={`content ${(status || isSpeaking) ? 'has-status' : ''}`}>
-        <TextInput 
-          value={text}
-          onChange={handleTextChange}
-          disabled={isSpeaking}
-        />
-        <Controls 
-          onSpeak={handleSpeak}
-          onStop={handleStop}
-          isSpeaking={isSpeaking}
-          disabled={!text.trim()}
-        />
-        <Status 
-          message={status} 
-          isPlaying={isSpeaking && !status}
-        />
+        <div className="input-section">
+          <TextInput 
+            value={text}
+            onChange={handleTextChange}
+            disabled={isSpeaking}
+          />
+          <div className="control-row">
+            <ControlDashboard 
+              onSpeak={handleSpeak}
+              onStop={handleStop}
+              isSpeaking={isSpeaking}
+              disabled={!text.trim()}
+            />
+            {(status || isSpeaking) && (
+              <Status 
+                message={status} 
+                isPlaying={isSpeaking && !status}
+              />
+            )}
+          </div>
+        </div>
       </main>
     </div>
   );
