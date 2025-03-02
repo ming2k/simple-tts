@@ -13,6 +13,7 @@ function Popup() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [status, setStatus] = useState('');
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
+  const [audioPlayer, setAudioPlayer] = useState(null);
 
   useEffect(() => {
     browser.storage.local.get(['onboardingCompleted', 'lastInput']).then((result) => {
@@ -37,7 +38,10 @@ function Popup() {
 
     try {
       if (isSpeaking) {
-        await browser.runtime.sendMessage({ type: 'STOP_ALL_AUDIO' });
+        if (audioPlayer) {
+          await audioPlayer.cleanup();
+          setAudioPlayer(null);
+        }
         setIsSpeaking(false);
         setStatus('');
         return;
@@ -52,12 +56,6 @@ function Popup() {
         throw new Error('Azure credentials not configured. Please check settings.');
       }
 
-      // Get current active tab
-      const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
-      if (!activeTab) {
-        throw new Error('No active tab found');
-      }
-
       const tts = new TTSService(settings.azureKey, settings.azureRegion);
       const audioBlob = await tts.synthesizeSpeech(text, {
         voice: settings.voice,
@@ -69,107 +67,40 @@ function Popup() {
         throw new Error('Failed to generate speech');
       }
 
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
+      // Create audio player
+      const player = tts.createAudioPlayer(audioBlob);
+      setAudioPlayer(player);
 
-      // Create and play audio in the current tab
-      await browser.tabs.executeScript(activeTab.id, {
-        code: `
-          (async () => {
-            try {
-              // Clean up any existing audio elements first
-              document.querySelectorAll('audio[data-tts-audio="true"]').forEach(audio => {
-                audio.pause();
-                audio.remove();
-              });
-
-              const uint8Array = new Uint8Array([${uint8Array.toString()}]);
-              const blob = new Blob([uint8Array], { type: 'audio/mp3' });
-              const audioUrl = URL.createObjectURL(blob);
-              const audio = new Audio(audioUrl);
-              audio.setAttribute('data-tts-audio', 'true');
-              audio.playbackRate = ${settings.rate || 1};
-              
-              // Send message when audio ends
-              audio.onended = () => {
-                if (audio.src.startsWith('blob:')) {
-                  URL.revokeObjectURL(audio.src);
-                }
-                audio.remove();
-                browser.runtime.sendMessage({ type: 'AUDIO_COMPLETED' });
-              };
-
-              // Send message if audio errors
-              audio.onerror = () => {
-                if (audio.src.startsWith('blob:')) {
-                  URL.revokeObjectURL(audio.src);
-                }
-                audio.remove();
-                browser.runtime.sendMessage({ 
-                  type: 'AUDIO_ERROR',
-                  error: 'Failed to play audio'
-                });
-              };
-
-              document.body.appendChild(audio);
-              await audio.play();
-            } catch (error) {
-              browser.runtime.sendMessage({ 
-                type: 'AUDIO_ERROR',
-                error: error.message
-              });
-            }
-          })();
-        `
-      }).catch(async (err) => {
-        // Fallback for Chrome MV3
-        if (browser.scripting) {
-          await browser.scripting.executeScript({
-            target: { tabId: activeTab.id },
-            func: (audioData, rate) => {
-              // Implementation similar to above but as a function
-              // ... (same logic as above)
-            },
-            args: [Array.from(uint8Array), settings.rate || 1]
-          });
-        } else {
-          throw err;
-        }
-      });
-
+      // Play the audio
+      await player.play();
       setStatus('');
 
-      // Add listener for audio completion and errors
-      const messageListener = (request) => {
-        if (request.type === 'AUDIO_COMPLETED' || request.type === 'STOP_AUDIO') {
-          setIsSpeaking(false);
-          setStatus('');
-          browser.runtime.onMessage.removeListener(messageListener);
-        } else if (request.type === 'AUDIO_ERROR') {
-          setIsSpeaking(false);
-          setStatus(`Error: ${request.error}`);
-          browser.runtime.onMessage.removeListener(messageListener);
-        }
+      // Add ended event listener
+      player.onEnded = () => {
+        setIsSpeaking(false);
+        setStatus('');
+        setAudioPlayer(null);
       };
-
-      browser.runtime.onMessage.addListener(messageListener);
 
     } catch (error) {
       console.error('TTS error:', error);
       setStatus(`Error: ${error.message}`);
       setIsSpeaking(false);
+      if (audioPlayer) {
+        await audioPlayer.cleanup();
+        setAudioPlayer(null);
+      }
     }
   };
 
   const handleStop = async () => {
     try {
-      const response = await browser.runtime.sendMessage({ type: 'STOP_ALL_AUDIO' });
-      if (response.success) {
-        setIsSpeaking(false);
-        setStatus('');
-      } else {
-        throw new Error(response.error || 'Failed to stop audio');
+      if (audioPlayer) {
+        await audioPlayer.cleanup();
+        setAudioPlayer(null);
       }
+      setIsSpeaking(false);
+      setStatus('');
     } catch (error) {
       console.error('Error stopping audio:', error);
       setStatus('Error stopping audio');

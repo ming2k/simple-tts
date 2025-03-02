@@ -71,33 +71,34 @@ export class TTSService {
   }
 
   async synthesizeSpeech(text, settings = {}, handlePlayback = false) {
-    // Split text into sentences
     const sentences = this.splitIntoSentences(text);
     
     // Stop any currently playing audio
     if (this.currentAudio) {
-      this.currentAudio.pause();
-      this.currentAudio = null;
+      await this.stopAudio();
     }
 
-    // If handlePlayback is true, play the audio internally
     if (handlePlayback) {
-      // Start all API requests in parallel
-      const audioPromises = sentences.map(sentence => 
-        this.synthesizeSingleChunk(sentence, settings)
-      );
-
-      // Play chunks sequentially as they become ready
-      for (let i = 0; i < sentences.length; i++) {
-        try {
-          // Wait for the next chunk to be ready
-          const audioBlob = await audioPromises[i];
-          // Play it
-          await this.playAudioChunk(audioBlob, settings.rate || 1);
-        } catch (error) {
-          console.error(`Error processing chunk ${i}:`, error);
-          throw error;
+      try {
+        // Create a single context for all audio
+        const context = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Ensure context is resumed on user interaction
+        await this.ensureAudioContext(context);
+        
+        // Process sentences sequentially
+        for (const sentence of sentences) {
+          const audioBlob = await this.synthesizeSingleChunk(sentence, settings);
+          await this.playAudioChunk(audioBlob, settings.rate || 1, context);
         }
+        
+        // Cleanup after all sentences
+        if (context && context.state !== 'closed') {
+          await context.close();
+        }
+      } catch (error) {
+        console.error('Audio playback failed:', error);
+        throw error;
       }
       return;
     }
@@ -134,47 +135,120 @@ export class TTSService {
     }
   }
 
-  async playAudioChunk(audioBlob, rate = 1) {
-    return new Promise((resolve, reject) => {
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      
-      this.currentAudio = audio;
-      audio.playbackRate = rate;
+  async ensureAudioContext(context) {
+    if (context.state === 'suspended') {
+      // Try to resume the context
+      try {
+        await context.resume();
+      } catch (error) {
+        // If we can't resume, wait for user interaction
+        await new Promise((resolve) => {
+          const handleInteraction = async () => {
+            await context.resume();
+            document.removeEventListener('click', handleInteraction);
+            document.removeEventListener('touchstart', handleInteraction);
+            resolve();
+          };
+          document.addEventListener('click', handleInteraction, { once: true });
+          document.addEventListener('touchstart', handleInteraction, { once: true });
+        });
+      }
+    }
+  }
 
-      // Add error handling for common autoplay issues
-      const handlePlayError = (error) => {
-        // Check if error is related to autoplay policy
-        if (error.name === 'NotAllowedError') {
-          reject(new Error('Audio playback was blocked by the browser. User interaction may be required.'));
-        } else if (error.name === 'AbortError') {
-          reject(new Error('Audio playback was aborted. The website may be blocking audio playback.'));
-        } else {
-          reject(error);
-        }
-        URL.revokeObjectURL(audioUrl);
-      };
+  async stopAudio() {
+    if (this.currentAudio) {
+      if (this.currentAudio.source) {
+        this.currentAudio.source.stop();
+        this.currentAudio.source.disconnect();
+      }
+      if (this.currentAudio.context && this.currentAudio.context.state !== 'closed') {
+        await this.currentAudio.context.close();
+      }
+      this.currentAudio = null;
+    }
+  }
 
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl);
-        resolve();
-      };
+  async playAudioChunk(audioBlob, rate = 1, existingContext = null) {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const context = existingContext || new (window.AudioContext || window.webkitAudioContext)();
+        const source = context.createBufferSource();
+        
+        // Store current audio for stopping later
+        this.currentAudio = { context, source };
 
-      audio.onerror = handlePlayError;
+        // Convert blob to audio buffer
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioBuffer = await context.decodeAudioData(arrayBuffer);
+        
+        source.buffer = audioBuffer;
+        source.playbackRate.value = rate;
+        source.connect(context.destination);
 
-      // Handle autoplay restrictions
-      audio.play().catch(handlePlayError);
+        // Handle completion
+        source.onended = () => {
+          if (!existingContext) {
+            context.close();
+          }
+          resolve();
+        };
+
+        // Ensure context is running
+        await this.ensureAudioContext(context);
+        
+        // Start playback
+        source.start(0);
+      } catch (error) {
+        console.error('Playback error:', error);
+        reject(error);
+      }
     });
   }
 
   createAudioPlayer(audioBlob) {
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
+    let context;
+    let source;
+    let onEnded = () => {};
     
+    const play = async () => {
+      try {
+        context = new (window.AudioContext || window.webkitAudioContext)();
+        await this.ensureAudioContext(context);
+        
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioBuffer = await context.decodeAudioData(arrayBuffer);
+        
+        source = context.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(context.destination);
+        
+        // Add ended event listener
+        source.onended = () => {
+          onEnded();
+        };
+        
+        source.start(0);
+      } catch (error) {
+        console.error('Audio player error:', error);
+        throw error;
+      }
+    };
+
     return {
-      audio,
-      play: () => audio.play(),
-      cleanup: () => URL.revokeObjectURL(audioUrl)
+      play,
+      cleanup: async () => {
+        if (source) {
+          source.stop();
+          source.disconnect();
+        }
+        if (context && context.state !== 'closed') {
+          await context.close();
+        }
+      },
+      set onEnded(callback) {
+        onEnded = callback;
+      }
     };
   }
 
