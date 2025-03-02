@@ -2,57 +2,13 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { SettingsContainer, SettingsLayout, SettingsContent } from './components/Layout';
 import { Navigation } from './components/Navigation';
-import { ApiSettings } from './components/ApiSettings';
-import { Document } from './components/Document';
-import { Sponsor } from './components/Sponsor';
+import { ApiSettings } from './components/tabs/ApiSettings';
+import { Document } from './components/tabs/Document';
+import { Sponsor } from './components/tabs/Sponsor';
+import { About } from './components/tabs/About';
 import './settings.css';
 import { TTSService } from '../services/ttsService';
-import { VoiceSettings } from './components/VoiceSettings';
-
-function EyeIcon({ isVisible }) {
-  return (
-    <svg 
-      width="20" 
-      height="20" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
-      {isVisible ? (
-        <>
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-          <circle cx="12" cy="12" r="3" />
-        </>
-      ) : (
-        <>
-          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-          <line x1="1" y1="1" x2="23" y2="23" />
-        </>
-      )}
-    </svg>
-  );
-}
-
-function CheckmarkIcon() {
-  return (
-    <svg 
-      width="18" 
-      height="18" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2.5" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-      className="checkmark-icon"
-    >
-      <path d="M20 6L9 17L4 12" />
-    </svg>
-  );
-}
+import { VoiceSettings } from './components/tabs/VoiceSettings';
 
 function Settings() {
   const [activeTab, setActiveTab] = useState('api');
@@ -72,7 +28,7 @@ function Settings() {
   useEffect(() => {
     // Get initial tab from URL hash or storage
     const hash = window.location.hash.slice(1);
-    const validTabs = ['api', 'voice', 'document', 'sponsor'];
+    const validTabs = ['api', 'voice', 'document', 'sponsor', 'about'];
     const initialTab = validTabs.includes(hash) ? hash : 'api';
     
     browser.storage.local.get(['settings', 'optionsActiveTab']).then(async (result) => {
@@ -193,6 +149,8 @@ function Settings() {
         return <Document />;
       case 'sponsor':
         return <Sponsor />;
+      case 'about':
+        return <About />;
       default:
         return null;
     }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Section } from './common';
+import { Section } from '../common';
 import styled from 'styled-components';
 
 const DocSection = styled.div`

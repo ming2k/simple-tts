@@ -50,6 +50,7 @@ export function Navigation({ activeTab, onTabChange }) {
     { id: 'api', label: 'API Settings' },
     { id: 'voice', label: 'Voice Settings' },
     { id: 'document', label: 'Document' },
+    { id: 'about', label: 'About' },
     { id: 'sponsor', label: 'Sponsor' }
   ];
 

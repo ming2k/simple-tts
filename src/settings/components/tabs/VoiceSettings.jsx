@@ -1,5 +1,5 @@
 import React from 'react';
-import { Section, InputGroup, SaveButton } from './common';
+import { Section, InputGroup, SaveButton } from '../common';
 import styled from 'styled-components';
 
 const SliderContainer = styled.div`
