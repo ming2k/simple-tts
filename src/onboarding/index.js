@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { OnboardingPopup } from './OnboardingPopup.jsx';
+import { Onboarding } from './Onboarding.jsx';
 import { createGlobalStyle } from 'styled-components';
 
 const GlobalStyle = createGlobalStyle`
@@ -15,7 +15,7 @@ function OnboardingApp() {
   return (
     <>
       <GlobalStyle />
-      <OnboardingPopup />
+      <Onboarding />
     </>
   );
 }

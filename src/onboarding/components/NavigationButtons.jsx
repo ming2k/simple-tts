@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
+import browser from 'webextension-polyfill';
 
 const ButtonContainer = styled.div`
   display: flex;
@@ -42,6 +43,24 @@ const NextButton = styled(Button)`
 `;
 
 export function NavigationButtons({ currentStep, totalSteps, onBack, onNext, isLoading }) {
+  const handleNext = async () => {
+    if (currentStep === totalSteps) {
+      // Close the current tab
+      try {
+        const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+        if (tabs[0]) {
+          await browser.tabs.remove(tabs[0].id);
+        }
+      } catch (error) {
+        console.error('Failed to close tab:', error);
+        // Fallback to window.close()
+        window.close();
+      }
+    } else {
+      onNext();
+    }
+  };
+
   return (
     <ButtonContainer>
       <BackButton 
@@ -52,7 +71,7 @@ export function NavigationButtons({ currentStep, totalSteps, onBack, onNext, isL
         Back
       </BackButton>
       <NextButton 
-        onClick={onNext}
+        onClick={handleNext}
         disabled={isLoading}
       >
         {isLoading ? 'Validating...' : currentStep === totalSteps ? 'Get Started' : 'Next'}

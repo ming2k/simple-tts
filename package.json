@@ -8,8 +8,8 @@
     "dev:firefox": "cross-env BROWSERS=firefox webpack --watch --config webpack.config.dev.js",
     "dev:chrome": "cross-env BROWSERS=chrome webpack --watch --config webpack.config.dev.js",
     "build": "cross-env BROWSERS=firefox,chrome webpack --config webpack.config.dist.js",
-    "build:firefox": "cross-env BROWSERS=firefox webpack --config webpack.config.dist.js",
-    "build:chrome": "cross-env BROWSERS=chrome webpack --config webpack.config.dist.js",
+    "build:firefox": "npm run clean:firefox && cross-env BROWSERS=firefox webpack --config webpack.config.dist.js",
+    "build:chrome": "npm run clean:chrome && cross-env BROWSERS=chrome webpack --config webpack.config.dist.js",
     "clean": "rm -rf dist dev",
     "clean:firefox": "rm -rf dist/firefox dev/firefox",
     "clean:chrome": "rm -rf dist/chrome dev/chrome",
@@ -21,7 +21,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "styled-components": "^6.1.13",
-    "webextension-polyfill": "^0.12.0"
+    "webextension-polyfill": "^0.12.0",
+    "react-feather": "^2.0.10"
   },
   "devDependencies": {
     "@babel/core": "^7.23.0",

@@ -142,17 +142,28 @@ export class TTSService {
       this.currentAudio = audio;
       audio.playbackRate = rate;
 
+      // Add error handling for common autoplay issues
+      const handlePlayError = (error) => {
+        // Check if error is related to autoplay policy
+        if (error.name === 'NotAllowedError') {
+          reject(new Error('Audio playback was blocked by the browser. User interaction may be required.'));
+        } else if (error.name === 'AbortError') {
+          reject(new Error('Audio playback was aborted. The website may be blocking audio playback.'));
+        } else {
+          reject(error);
+        }
+        URL.revokeObjectURL(audioUrl);
+      };
+
       audio.onended = () => {
         URL.revokeObjectURL(audioUrl);
         resolve();
       };
 
-      audio.onerror = (error) => {
-        URL.revokeObjectURL(audioUrl);
-        reject(error);
-      };
+      audio.onerror = handlePlayError;
 
-      audio.play().catch(reject);
+      // Handle autoplay restrictions
+      audio.play().catch(handlePlayError);
     });
   }
 

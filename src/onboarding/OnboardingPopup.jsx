@@ -1,33 +1,39 @@
-import React, { useState, useEffect } from 'react';
-import { Container } from './components/StyledComponents';
-import { ProgressBar } from './components/ProgressBar';
-import { Steps } from './components/Steps';
-import { NavigationButtons } from './components/NavigationButtons';
-import { steps } from './constants/steps';
-import { TTSService } from '../services/ttsService';
+import React, { useState } from 'react';
+import styled from 'styled-components';
+import { ProgressBar } from '../StyledComponents';
+import { RenderSteps } from './steps/RenderSteps';
+import { NavigationButtons } from './NavigationButtons';
+import { TTSService } from '../../services/TTSService';
+
+const Container = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+`;
 
 export function OnboardingPopup() {
   const [currentStep, setCurrentStep] = useState(1);
   const [azureKey, setAzureKey] = useState('');
   const [azureRegion, setAzureRegion] = useState('');
   const [error, setError] = useState('');
-  const [existingSettings, setExistingSettings] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
-
-  useEffect(() => {
-    browser.storage.local.get('settings').then((result) => {
-      if (result.settings) {
-        setExistingSettings(result.settings);
-        setAzureKey(result.settings.azureKey || '');
-        setAzureRegion(result.settings.azureRegion || '');
-      }
-    });
-  }, []);
+  const [progress, setProgress] = useState(0);
 
   const handleInputChange = (field, value) => {
-    setError('');
-    if (field === 'azureKey') setAzureKey(value);
-    if (field === 'azureRegion') setAzureRegion(value);
+    if (field === 'azureKey') {
+      setAzureKey(value);
+    } else if (field === 'azureRegion') {
+      setAzureRegion(value);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
   };
 
   const validateCredentials = async (key, region) => {
@@ -54,32 +60,6 @@ export function OnboardingPopup() {
     }
   };
 
-  const saveSettings = async () => {
-    try {
-      const newSettings = {
-        ...(existingSettings || {}),
-        voice: existingSettings?.voice || 'zh-CN-XiaoxiaoNeural',
-        rate: existingSettings?.rate || 1,
-        pitch: existingSettings?.pitch || 1,
-        azureKey,
-        azureRegion,
-        showKey: false,
-        onboardingCompleted: true
-      };
-
-      await Promise.all([
-        browser.storage.local.set({ settings: newSettings }),
-        browser.storage.local.set({ onboardingCompleted: true })
-      ]);
-      
-      return true;
-    } catch (err) {
-      console.error('Settings save error:', err);
-      setError('Failed to save settings. Please try again.');
-      return false;
-    }
-  };
-
   const handleNext = async () => {
     if (currentStep === 1) {
       setCurrentStep(2);
@@ -90,6 +70,7 @@ export function OnboardingPopup() {
       const isValid = await validateCredentials(azureKey, azureRegion);
       if (!isValid) return;
 
+      // Only save if validation succeeds
       const saved = await saveSettings();
       if (saved) {
         setCurrentStep(3);
@@ -102,26 +83,20 @@ export function OnboardingPopup() {
     }
   };
 
-  const handleBack = () => {
-    setError('');
-    setCurrentStep(prev => prev - 1);
-  };
-
-  const progress = ((currentStep - 1) / (steps.length - 1)) * 100;
-
   return (
     <Container>
       <ProgressBar percentage={progress} />
-      <Steps
+      <RenderSteps
         currentStep={currentStep}
         azureKey={azureKey}
         azureRegion={azureRegion}
         onChange={handleInputChange}
         error={error}
+        onValidate={validateCredentials}
       />
       <NavigationButtons
         currentStep={currentStep}
-        totalSteps={steps.length}
+        totalSteps={TOTAL_STEPS}
         onBack={handleBack}
         onNext={handleNext}
         isLoading={isValidating}

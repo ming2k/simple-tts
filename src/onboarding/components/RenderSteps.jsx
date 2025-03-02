@@ -1,10 +1,10 @@
 import React from 'react';
 import { StepContainer } from './StyledComponents';
-import { WelcomeStep } from './WelcomeStep';
-import { ConfigurationStep } from './ConfigurationStep';
-import { CompletionStep } from './CompletionStep';
+import { WelcomeStep } from './steps/WelcomeStep';
+import { ConfigurationStep } from './steps/ConfigurationStep';
+import { CompletionStep } from './steps/CompletionStep';
 
-export function Steps({ currentStep, azureKey, azureRegion, onChange, error }) {
+export function RenderSteps({ currentStep, azureKey, azureRegion, onChange, error }) {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
