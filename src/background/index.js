@@ -68,7 +68,7 @@ browser.runtime.onMessage.addListener((message) => {
   }
 });
 
-// Handle the context menu item click
+// Modify the context menu click handler
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "translate-selected-text" && info.selectionText) {
     try {
@@ -81,7 +81,6 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       
       const ttsService = new TTSService(settings.azureKey, settings.azureRegion);
-      
       const audioBlobs = await ttsService.synthesizeSpeech(info.selectionText, {
         voice: settings.voice,
         rate: settings.rate,
@@ -92,163 +91,21 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         throw new Error('Speech synthesis failed to generate audio');
       }
 
+      // Stop any currently playing audio
+      await browser.tabs.sendMessage(tab.id, { type: 'STOP_AUDIO' });
+
       // Combine all audio blobs into one
       const combinedBlob = new Blob(audioBlobs, { type: 'audio/mp3' });
-      
-      // Create object URL directly from blob
       const audioUrl = URL.createObjectURL(combinedBlob);
 
-      // Inject the audio player HTML and script
-      await browser.tabs.executeScript(tab.id, {
-        code: `
-          (function() {
-            // Remove any existing TTS players
-            const existingPlayer = document.getElementById('simple-tts-player');
-            if (existingPlayer) {
-              existingPlayer.remove();
-            }
-
-            // Create container for the player
-            const container = document.createElement('div');
-            container.id = 'simple-tts-player';
-            container.style.cssText = 'position: fixed; bottom: 20px; right: 20px; z-index: 999999; \
-              background: white; padding: 12px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); \
-              display: flex; align-items: center; gap: 12px; font-family: system-ui, -apple-system, sans-serif; \
-              border: 1px solid rgba(0,0,0,0.1); transition: all 0.2s ease;';
-
-            // Add draggable functionality
-            let isDragging = false;
-            let currentX;
-            let currentY;
-            let initialX;
-            let initialY;
-            let xOffset = 0;
-            let yOffset = 0;
-
-            container.addEventListener('mousedown', dragStart);
-            document.addEventListener('mousemove', drag);
-            document.addEventListener('mouseup', dragEnd);
-
-            function dragStart(e) {
-              initialX = e.clientX - xOffset;
-              initialY = e.clientY - yOffset;
-              
-              if (e.target === container) {
-                isDragging = true;
-                container.style.cursor = 'grabbing';
-              }
-            }
-
-            function drag(e) {
-              if (isDragging) {
-                e.preventDefault();
-                currentX = e.clientX - initialX;
-                currentY = e.clientY - initialY;
-                xOffset = currentX;
-                yOffset = currentY;
-                
-                container.style.transform = \`translate(\${currentX}px, \${currentY}px)\`;
-              }
-            }
-
-            function dragEnd() {
-              isDragging = false;
-              container.style.cursor = 'grab';
-            }
-
-            // Create audio element
-            const audio = document.createElement('audio');
-            audio.id = 'simple-tts-audio';
-            audio.style.display = 'none';
-            
-            // Set audio source directly from URL
-            audio.src = '${audioUrl}';
-            audio.playbackRate = ${settings.rate || 1};
-
-            // Create status icon
-            const statusIcon = document.createElement('div');
-            statusIcon.style.cssText = 'width: 24px; height: 24px; border-radius: 50%; \
-              background: #3b82f6; display: flex; align-items: center; justify-content: center; \
-              color: white; font-size: 14px; flex-shrink: 0;';
-            statusIcon.innerHTML = '🔊';
-
-            // Create status text
-            const statusText = document.createElement('span');
-            statusText.style.cssText = 'font-size: 14px; color: #374151; font-weight: 500;';
-            statusText.textContent = 'Playing...';
-
-            // Create button container
-            const buttonContainer = document.createElement('div');
-            buttonContainer.style.cssText = 'display: flex; gap: 8px; align-items: center;';
-
-            // Create pause/play button
-            const toggleButton = document.createElement('button');
-            toggleButton.style.cssText = 'width: 32px; height: 32px; border-radius: 6px; border: 1px solid #e5e7eb; \
-              background: #f3f4f6; cursor: pointer; display: flex; align-items: center; justify-content: center; \
-              color: #374151; font-size: 16px; transition: all 0.2s ease; padding: 0;';
-            toggleButton.innerHTML = '⏸️';
-            toggleButton.title = 'Pause';
-
-            // Create close button
-            const closeButton = document.createElement('button');
-            closeButton.style.cssText = 'width: 32px; height: 32px; border-radius: 6px; border: 1px solid #e5e7eb; \
-              background: #f3f4f6; cursor: pointer; display: flex; align-items: center; justify-content: center; \
-              color: #374151; font-size: 16px; transition: all 0.2s ease; padding: 0;';
-            closeButton.innerHTML = '✕';
-            closeButton.title = 'Close';
-
-            // Add hover effects
-            [toggleButton, closeButton].forEach(button => {
-              button.addEventListener('mouseover', () => {
-                button.style.background = '#e5e7eb';
-              });
-              button.addEventListener('mouseout', () => {
-                button.style.background = '#f3f4f6';
-              });
-            });
-
-            // Add event listeners
-            let isPlaying = true;
-            
-            audio.onended = () => {
-              container.remove();
-              URL.revokeObjectURL('${audioUrl}');
-            };
-
-            toggleButton.onclick = () => {
-              if (isPlaying) {
-                audio.pause();
-                toggleButton.innerHTML = '▶️';
-                toggleButton.title = 'Play';
-                statusText.textContent = 'Paused';
-              } else {
-                audio.play();
-                toggleButton.innerHTML = '⏸️';
-                toggleButton.title = 'Pause';
-                statusText.textContent = 'Playing...';
-              }
-              isPlaying = !isPlaying;
-            };
-
-            closeButton.onclick = () => {
-              audio.pause();
-              container.remove();
-              URL.revokeObjectURL('${audioUrl}');
-            };
-
-            // Assemble the player
-            container.appendChild(statusIcon);
-            container.appendChild(statusText);
-            buttonContainer.appendChild(toggleButton);
-            buttonContainer.appendChild(closeButton);
-            container.appendChild(buttonContainer);
-            container.appendChild(audio);
-            document.body.appendChild(container);
-
-            // Start playback
-            audio.play().catch(console.error);
-          })();
-        `
+      // Play using the injected player through messaging
+      await browser.tabs.sendMessage(tab.id, {
+        type: 'PLAY_AUDIO',
+        url: audioUrl,
+        rate: settings.rate || 1
+      }).catch(error => {
+        console.error('Playback error:', error);
+        URL.revokeObjectURL(audioUrl);
       });
 
     } catch (error) {

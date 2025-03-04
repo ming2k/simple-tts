@@ -159,40 +159,11 @@ export class TTSService {
         await this.stopAudio();
       }
 
-      if (handlePlayback) {
-        try {
-          const context = new (window.AudioContext || window.webkitAudioContext)();
-          await this.ensureAudioContext(context);
-          
-          for (const sentence of sentences) {
-            try {
-              const audioBlob = await this.synthesizeSingleChunk(sentence, finalSettings);
-              if (!audioBlob) {
-                throw new Error('No audio data received from synthesis');
-              }
-              await this.playAudioChunk(audioBlob, finalSettings.rate, context);
-            } catch (error) {
-              console.error('Error processing sentence:', sentence, error);
-              throw error;
-            }
-          }
-          
-          if (context && context.state !== 'closed') {
-            await context.close();
-          }
-        } catch (error) {
-          console.error('Audio playback failed:', error);
-          throw error;
-        }
-        return;
-      }
-
-      // If not handling playback, synthesize all chunks and return array of blobs
+      // If not handling playback, return array of blobs
       const audioBlobs = await Promise.all(
         sentences.map(sentence => this.synthesizeSingleChunk(sentence, finalSettings))
       );
 
-      // Validate that we have valid blobs
       if (!audioBlobs.every(blob => blob instanceof Blob)) {
         throw new Error('Failed to synthesize one or more audio chunks');
       }
@@ -239,46 +210,35 @@ export class TTSService {
   async playAudioChunk(audioBlob, rate = 1, existingContext = null) {
     return new Promise(async (resolve, reject) => {
       try {
-        console.log('Received audioBlob:', audioBlob);
-        console.log('Type of audioBlob:', typeof audioBlob);
-        console.log('Is Blob?', audioBlob instanceof Blob);
-        
-        // If we didn't get a Blob, try to create one
-        if (!(audioBlob instanceof Blob)) {
-          if (audioBlob instanceof ArrayBuffer) {
-            audioBlob = new Blob([audioBlob], { type: 'audio/mpeg' });
-          } else {
-            console.error('Invalid audio data received:', audioBlob);
-            throw new Error('Invalid audio data received');
-          }
-        }
-
         // Use existing context or get the initialized one
         const context = existingContext || await this.initAudioContext();
-        const source = context.createBufferSource();
         
+        // Ensure context is running
+        if (context.state !== 'running') {
+          await context.resume();
+        }
+
+        const source = context.createBufferSource();
         this.currentAudio = { context, source };
 
-        try {
-          const arrayBuffer = await audioBlob.arrayBuffer();
-          const audioBuffer = await context.decodeAudioData(arrayBuffer);
-          
-          source.buffer = audioBuffer;
-          source.playbackRate.value = rate;
-          source.connect(context.destination);
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioBuffer = await context.decodeAudioData(arrayBuffer);
+        
+        source.buffer = audioBuffer;
+        source.playbackRate.value = rate;
+        source.connect(context.destination);
 
-          source.onended = () => {
-            if (!existingContext) {
-              source.disconnect();
-            }
-            resolve();
-          };
+        // Add a longer scheduling delay
+        const startTime = context.currentTime + 0.8;
 
-          source.start(0);
-        } catch (error) {
-          console.error('Error processing audio data:', error);
-          throw error;
-        }
+        source.onended = () => {
+          if (!existingContext) {
+            source.disconnect();
+          }
+          resolve();
+        };
+
+        source.start(startTime);
       } catch (error) {
         console.error('Playback error:', error);
         reject(error);
@@ -377,27 +337,21 @@ export class TTSService {
     if (!this.audioContext) {
       this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
       
-      // Create and play a silent buffer to warm up the audio system
-      const silentBuffer = this.audioContext.createBuffer(1, 1, 22050);
+      // Create a longer silent buffer (1 second)
+      const sampleRate = this.audioContext.sampleRate;
+      const silentBuffer = this.audioContext.createBuffer(1, sampleRate, sampleRate);
       const source = this.audioContext.createBufferSource();
       source.buffer = silentBuffer;
       source.connect(this.audioContext.destination);
-      source.start();
       
-      // Wait for the context to be running
-      if (this.audioContext.state !== 'running') {
-        await new Promise((resolve) => {
-          const checkState = () => {
-            if (this.audioContext.state === 'running') {
-              resolve();
-            } else {
-              requestAnimationFrame(checkState);
-            }
-          };
-          checkState();
-        });
-      }
+      // Start and stop with a longer duration
+      const startTime = this.audioContext.currentTime;
+      source.start(startTime);
+      source.stop(startTime + 0.5); // Play for 500ms
+      
+      // Wait for the context to be fully initialized
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
     return this.audioContext;
   }
-} 
+}

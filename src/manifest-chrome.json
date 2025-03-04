@@ -18,11 +18,6 @@
   "host_permissions": [
     "<all_urls>"
   ],
-  "content_scripts": [{
-    "matches": ["<all_urls>"],
-    "js": ["content.js"],
-    "css": ["content.css"]
-  }],
   "action": {
     "default_icon": {
       "48": "assets/icons/icon-48.svg"
