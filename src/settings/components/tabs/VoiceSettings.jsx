@@ -215,10 +215,11 @@ export function VoiceSettings({
   const filteredVoices = getVoicesForLanguage(activeLanguage);
 
   const handleChange = (e) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
+    const numValue = name === 'rate' || name === 'pitch' ? parseFloat(value) : value;
     setCurrentSettings(prev => ({
       ...prev,
-      [name]: type === 'number' ? parseFloat(value) : value
+      [name]: numValue
     }));
   };
 
@@ -313,13 +314,13 @@ export function VoiceSettings({
                 type="range"
                 id="rate"
                 name="rate"
-                min="0.5"
-                max="2"
-                step="0.1"
-                value={currentSettings.rate}
+                min={0.5}
+                max={2}
+                step={0.1}
+                value={currentSettings.rate || 1}
                 onChange={handleChange}
               />
-              <SliderValue>{currentSettings.rate}x</SliderValue>
+              <SliderValue>{currentSettings.rate || 1}x</SliderValue>
             </SliderWithValue>
           </SliderContainer>
 
@@ -330,13 +331,13 @@ export function VoiceSettings({
                 type="range"
                 id="pitch"
                 name="pitch"
-                min="0.5"
-                max="2"
-                step="0.1"
-                value={currentSettings.pitch}
+                min={0.5}
+                max={2}
+                step={0.1}
+                value={currentSettings.pitch || 1}
                 onChange={handleChange}
               />
-              <SliderValue>{currentSettings.pitch}x</SliderValue>
+              <SliderValue>{currentSettings.pitch || 1}x</SliderValue>
             </SliderWithValue>
           </SliderContainer>
         </>
