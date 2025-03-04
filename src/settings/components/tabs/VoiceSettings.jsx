@@ -51,6 +51,20 @@ const OtherLanguageTab = styled(LanguageTab)`
 const DraggableLanguageTab = styled(LanguageTab)`
   cursor: move;
   touch-action: none;
+  transition: all 0.2s ease;
+  position: relative;
+  transform: translateX(0);
+  
+  ${props => props.$isDragging && `
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    opacity: 0.8;
+    z-index: 1;
+  `}
+
+  ${props => props.$isDragOver && `
+    transform: translateX(${props.$dragDirection === 'left' ? '-8px' : '8px'});
+  `}
 `;
 
 const LanguageSettings = styled.div`
@@ -151,6 +165,15 @@ const getLanguageAbbreviation = (langCode) => {
   return langCode.toUpperCase();
 };
 
+// Add this function to debounce state updates
+const debounce = (func, wait) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
+
 export function VoiceSettings({ 
   settings,  // Now only contains API settings
   selectedLocale, 
@@ -184,6 +207,11 @@ export function VoiceSettings({
 
   // Add drag and drop functionality
   const [draggedLang, setDraggedLang] = useState(null);
+  const [dragOverLang, setDragOverLang] = useState(null);
+  const [dragDirection, setDragDirection] = useState(null);
+
+  // In the VoiceSettings component, add this state
+  const [orderedLanguages, setOrderedLanguages] = useState([]);
 
   useEffect(() => {
     // Load saved voice settings for all languages
@@ -236,6 +264,14 @@ export function VoiceSettings({
       }
     });
   }, []);
+
+  // Add this effect to maintain ordered languages
+  useEffect(() => {
+    const ordered = Object.entries(mainLanguages)
+      .filter(([code, lang]) => lang.pinned && code !== 'other')
+      .sort((a, b) => a[1].order - b[1].order);
+    setOrderedLanguages(ordered);
+  }, [mainLanguages]);
 
   // Save language-specific settings
   const saveVoiceSettings = async (langCode, settings) => {
@@ -427,45 +463,65 @@ export function VoiceSettings({
     });
   };
 
-  // Add drag and drop functionality
-  const handleDragStart = (langCode) => {
+  // Update the drag handlers
+  const handleDragStart = (langCode, e) => {
     setDraggedLang(langCode);
+    // Set custom drag image (optional)
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+    }
   };
 
+  // Update the handleDragOver function
   const handleDragOver = (e, langCode) => {
     e.preventDefault();
     if (draggedLang && draggedLang !== langCode) {
       const draggedOrder = mainLanguages[draggedLang].order;
       const targetOrder = mainLanguages[langCode].order;
       
-      setMainLanguages(prev => {
-        const updated = { ...prev };
-        // Update orders
-        Object.keys(updated).forEach(key => {
-          const lang = updated[key];
-          if (draggedOrder < targetOrder) {
-            if (lang.order > draggedOrder && lang.order <= targetOrder) {
-              lang.order--;
+      // Determine drag direction
+      setDragDirection(draggedOrder < targetOrder ? 'right' : 'left');
+      setDragOverLang(langCode);
+
+      // Debounce the order update
+      debounce(() => {
+        setMainLanguages(prev => {
+          const updated = { ...prev };
+          // Update orders
+          Object.keys(updated).forEach(key => {
+            const lang = updated[key];
+            if (draggedOrder < targetOrder) {
+              if (lang.order > draggedOrder && lang.order <= targetOrder) {
+                lang.order--;
+              }
+            } else {
+              if (lang.order >= targetOrder && lang.order < draggedOrder) {
+                lang.order++;
+              }
             }
-          } else {
-            if (lang.order >= targetOrder && lang.order < draggedOrder) {
-              lang.order++;
-            }
-          }
+          });
+          updated[draggedLang].order = targetOrder;
+          return updated;
         });
-        updated[draggedLang].order = targetOrder;
-        return updated;
-      });
+      }, 50)();
     }
   };
 
   const handleDragEnd = async () => {
     setDraggedLang(null);
+    setDragOverLang(null);
+    setDragDirection(null);
     // Save both mainLanguages and pinnedLanguages to storage
     await browser.storage.local.set({ 
       mainLanguages: mainLanguages,
       pinnedLanguages: pinnedLanguages 
     });
+  };
+
+  // Add drag leave handler
+  const handleDragLeave = () => {
+    setDragOverLang(null);
+    setDragDirection(null);
   };
 
   // Add an effect to load mainLanguages from storage on mount
@@ -497,22 +553,23 @@ export function VoiceSettings({
         <>
           <LanguageTabs>
             <MainLanguageTabs>
-              {Object.entries(mainLanguages)
-                .filter(([langCode, lang]) => lang.pinned && langCode !== 'other')
-                .sort((a, b) => a[1].order - b[1].order)
-                .map(([langCode, lang]) => (
-                  <DraggableLanguageTab
-                    key={langCode}
-                    $active={activeLanguage === langCode}
-                    onClick={() => handleLanguageChange(langCode)}
-                    draggable
-                    onDragStart={() => handleDragStart(langCode)}
-                    onDragOver={(e) => handleDragOver(e, langCode)}
-                    onDragEnd={handleDragEnd}
-                  >
-                    {lang.name}
-                  </DraggableLanguageTab>
-                ))}
+              {orderedLanguages.map(([langCode, lang]) => (
+                <DraggableLanguageTab
+                  key={langCode}
+                  $active={activeLanguage === langCode}
+                  $isDragging={draggedLang === langCode}
+                  $isDragOver={dragOverLang === langCode}
+                  $dragDirection={dragDirection}
+                  onClick={() => handleLanguageChange(langCode)}
+                  draggable
+                  onDragStart={(e) => handleDragStart(langCode, e)}
+                  onDragOver={(e) => handleDragOver(e, langCode)}
+                  onDragEnd={handleDragEnd}
+                  onDragLeave={handleDragLeave}
+                >
+                  {lang.name}
+                </DraggableLanguageTab>
+              ))}
             </MainLanguageTabs>
             <OtherLanguageTab
               $active={activeLanguage === 'other'}
