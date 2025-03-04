@@ -23,6 +23,18 @@ const Slider = styled.input`
 `;
 
 export function VoiceSettings({ settings, selectedLocale, groupedVoices, onChange, onSave, isSaving, voicesError }) {
+  const handleLocaleChange = (e) => {
+    const newLocale = e.target.value;
+    if (groupedVoices[newLocale]?.length > 0) {
+      onChange({
+        target: {
+          name: 'voice',
+          value: groupedVoices[newLocale][0].value
+        }
+      });
+    }
+  };
+
   const handleSliderChange = (e) => {
     const { name, value } = e.target;
     onChange({
@@ -45,7 +57,7 @@ export function VoiceSettings({ settings, selectedLocale, groupedVoices, onChang
             <select 
               id="voiceLocale"
               value={selectedLocale}
-              onChange={(e) => setSelectedLocale(e.target.value)}
+              onChange={handleLocaleChange}
               className="voice-select"
             >
               <option value="">Select a region</option>

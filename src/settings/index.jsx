@@ -87,6 +87,17 @@ function Settings() {
       ...prev,
       [name]: newValue
     }));
+
+    // If changing voice, update the selected locale
+    if (name === 'voice') {
+      const newLocale = Object.entries(groupedVoices).find(([locale, voices]) => 
+        voices.some(voice => voice.value === value)
+      )?.[0];
+      
+      if (newLocale) {
+        setSelectedLocale(newLocale);
+      }
+    }
   };
 
   const toggleKeyVisibility = () => {
