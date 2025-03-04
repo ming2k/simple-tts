@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Section, InputGroup, SaveButton } from '../common';
+import { TTSService } from '../../../services/ttsService';
 
 // Icons
 const EyeIcon = ({ isVisible }) => (
@@ -154,6 +155,22 @@ const ButtonContainer = styled.div`
   margin-top: 24px;
 `;
 
+const ValidationMessage = styled.div`
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  ${props => props.$isError ? `
+    background-color: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+  ` : `
+    background-color: #dcfce7;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+  `}
+`;
+
 // ApiInput Component
 function ApiInput({
   label,
@@ -197,7 +214,54 @@ function ApiInput({
 }
 
 // Main Component
-export function ApiSettings({ settings, onChange, onSave, isSaving, onTabChange }) {
+export function ApiSettings({ settings, onChange, onSave, isSaving }) {
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationMessage, setValidationMessage] = useState(null);
+  const [validationError, setValidationError] = useState(null);
+
+  const validateCredentials = async (credentials) => {
+    try {
+      setIsValidating(true);
+      setValidationMessage('Validating credentials...');
+      setValidationError(null);
+
+      const ttsService = new TTSService(credentials.azureKey, credentials.azureRegion);
+      await ttsService.getVoicesList(); // This will throw if credentials are invalid
+
+      setValidationMessage('Credentials validated successfully');
+      return true;
+    } catch (error) {
+      console.error('Validation failed:', error);
+      setValidationError('Invalid credentials. Please check your Azure key and region.');
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleSave = async () => {
+    // Clear previous messages
+    setValidationMessage(null);
+    setValidationError(null);
+
+    // Validate required fields
+    if (!settings.azureKey || !settings.azureRegion) {
+      setValidationError('Please fill in both Azure Key and Region');
+      return;
+    }
+
+    // Validate credentials
+    const isValid = await validateCredentials(settings);
+    
+    if (isValid) {
+      await onSave();
+      // Keep success message visible for a moment
+      setTimeout(() => {
+        setValidationMessage(null);
+      }, 3000);
+    }
+  };
+
   const handleToggleVisibility = () => {
     onChange({
       target: {
@@ -221,7 +285,7 @@ export function ApiSettings({ settings, onChange, onSave, isSaving, onTabChange 
           type={settings.showKey ? "text" : "password"}
           value={settings.azureKey}
           onChange={onChange}
-          placeholder="Enter your Azure Speech key"
+          placeholder="Enter your Azure Speech Service key"
           hasEye
           isKey
           showKey={settings.showKey}
@@ -237,9 +301,27 @@ export function ApiSettings({ settings, onChange, onSave, isSaving, onTabChange 
           isShort
         />
 
+        {validationError && (
+          <ValidationMessage $isError>
+            {validationError}
+          </ValidationMessage>
+        )}
+
+        {validationMessage && (
+          <ValidationMessage>
+            {validationMessage}
+          </ValidationMessage>
+        )}
+
         <ButtonContainer>
-          <SaveButton onClick={onSave} $saving={isSaving}>
-            {isSaving ? 'Saved ✓' : 'Save API Settings'}
+          <SaveButton 
+            onClick={handleSave} 
+            $saving={isSaving || isValidating}
+            disabled={isValidating}
+          >
+            {isValidating ? 'Validating...' : 
+             isSaving ? 'Saved ✓' : 
+             'Save API Settings'}
           </SaveButton>
         </ButtonContainer>
       </Container>

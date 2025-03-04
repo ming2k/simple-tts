@@ -14,9 +14,6 @@ function Settings() {
   const [activeTab, setActiveTab] = useState('api');
   const [voicesError, setVoicesError] = useState('');
   const [settings, setSettings] = useState({
-    voice: 'zh-CN-XiaoxiaoNeural',
-    rate: 1,
-    pitch: 1,
     azureKey: '',
     azureRegion: '',
     showKey: false
@@ -31,53 +28,50 @@ function Settings() {
     const validTabs = ['api', 'voice', 'document', 'sponsor', 'about'];
     const initialTab = validTabs.includes(hash) ? hash : 'api';
     
-    browser.storage.local.get(['settings', 'optionsActiveTab']).then(async (result) => {
+    browser.storage.local.get(['settings', 'voiceSettings', 'optionsActiveTab']).then(async (result) => {
       setActiveTab(initialTab);
       
-      // Initialize settings with environment variables if no stored settings
-      if (!result.settings) {
-        const defaultSettings = {
-          voice: 'zh-CN-XiaoxiaoNeural',
-          rate: 1,
-          pitch: 1,
-          azureKey: process.env.AZURE_SPEECH_KEY || '',
-          azureRegion: process.env.AZURE_REGION || '',
-          showKey: false
-        };
-        setSettings(defaultSettings);
-      } else {
-        setSettings(result.settings);
-      }
+      // Initialize settings with defaults (API settings only)
+      const defaultSettings = {
+        azureKey: process.env.AZURE_SPEECH_KEY || '',
+        azureRegion: process.env.AZURE_REGION || '',
+        showKey: false
+      };
+
+      const savedSettings = result.settings || defaultSettings;
+      setSettings(savedSettings);
       
-      if (result.settings) {
-        setSettings(result.settings);
-        
-        if (result.settings.azureKey && result.settings.azureRegion) {
-          try {
-            const ttsService = new TTSService(result.settings.azureKey, result.settings.azureRegion);
-            const voicesList = await ttsService.getVoicesList();
-            setGroupedVoices(voicesList);
-            
-            const currentVoiceLocale = Object.entries(voicesList).find(([locale, voices]) => 
-              voices.some(voice => voice.value === result.settings.voice)
-            );
-            
-            if (currentVoiceLocale) {
-              setSelectedLocale(currentVoiceLocale[0]);
-            }
-            
-            setVoicesError('');
-          } catch (error) {
-            console.error('Failed to load voices:', error);
-            setVoicesError('Failed to load voices. Please check your API settings.');
-          }
-        }
-      }
-      if (result.optionsActiveTab) {
-        setActiveTab(result.optionsActiveTab);
+      // Fetch voices if we have credentials
+      if (savedSettings.azureKey && savedSettings.azureRegion) {
+        await fetchVoices(savedSettings);
       }
     });
   }, []);
+
+  // Add a new function to fetch voices
+  const fetchVoices = async (currentSettings) => {
+    try {
+      const ttsService = new TTSService(currentSettings.azureKey, currentSettings.azureRegion);
+      const voicesList = await ttsService.getVoicesList();
+      setGroupedVoices(voicesList);
+      
+      // Set initial locale based on current voice
+      if (currentSettings.voice) {
+        const currentVoiceLocale = Object.entries(voicesList).find(([locale, voices]) => 
+          voices.some(voice => voice.value === currentSettings.voice)
+        );
+        
+        if (currentVoiceLocale) {
+          setSelectedLocale(currentVoiceLocale[0]);
+        }
+      }
+      
+      setVoicesError('');
+    } catch (error) {
+      console.error('Failed to load voices:', error);
+      setVoicesError('Failed to load voices. Please check your API settings.');
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -111,9 +105,11 @@ function Settings() {
     try {
       setIsSaving(true);
       await browser.storage.local.set({ settings });
-      console.log('Saved settings:', settings);
-      const result = await browser.storage.local.get('settings');
-      console.log('Retrieved settings:', result.settings);
+      
+      // If we're on the API tab and credentials changed, fetch voices
+      if (activeTab === 'api') {
+        await fetchVoices(settings);
+      }
       
       // Reset saving state after a short delay
       setTimeout(() => {
@@ -151,10 +147,11 @@ function Settings() {
             settings={settings}
             selectedLocale={selectedLocale}
             groupedVoices={groupedVoices}
-            onChange={handleChange}
             onSave={handleSave}
             isSaving={isSaving}
             voicesError={voicesError}
+            onFetchVoices={fetchVoices}
+            setSelectedLocale={setSelectedLocale}
           />
         );
       case 'document':

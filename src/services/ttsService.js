@@ -1,3 +1,6 @@
+import { analyzeTextLanguage, getDefaultVoice, languageConfig } from '../utils/languageConfig.js';
+import browser from 'webextension-polyfill';
+
 export class TTSService {
   constructor(azureKey, azureRegion) {
     this.azureKey = azureKey;
@@ -106,65 +109,78 @@ export class TTSService {
     return response.blob();
   }
 
-  async synthesizeSpeech(text, settings = {}, handlePlayback = false) {
-    const sentences = this.splitIntoSentences(text);
-    
-    // Stop any currently playing audio
-    if (this.currentAudio) {
-      await this.stopAudio();
-    }
-
-    if (handlePlayback) {
-      try {
-        // Create a single context for all audio
-        const context = new (window.AudioContext || window.webkitAudioContext)();
-        
-        // Ensure context is resumed on user interaction
-        await this.ensureAudioContext(context);
-        
-        // Process sentences sequentially
-        for (const sentence of sentences) {
-          const audioBlob = await this.synthesizeSingleChunk(sentence, settings);
-          await this.playAudioChunk(audioBlob, settings.rate || 1, context);
-        }
-        
-        // Cleanup after all sentences
-        if (context && context.state !== 'closed') {
-          await context.close();
-        }
-      } catch (error) {
-        console.error('Audio playback failed:', error);
-        throw error;
-      }
-      return;
-    }
-
-    // Otherwise, return a single audio blob
+  async synthesizeSpeech(text, userSettings = {}, handlePlayback = false) {
     try {
-      if (sentences.length === 1) {
-        return await this.synthesizeSingleChunk(text, settings);
+      // Get both API settings and voice settings
+      const { settings, voiceSettings } = await browser.storage.local.get(['settings', 'voiceSettings']);
+      
+      // Verify API settings
+      if (!settings?.azureKey || !settings?.azureRegion) {
+        throw new Error('Azure credentials not configured');
       }
 
-      // For multiple sentences, combine the audio blobs
-      const audioBlobs = await Promise.all(
-        sentences.map(sentence => this.synthesizeSingleChunk(sentence, settings))
-      );
+      // Update instance credentials if needed
+      if (settings.azureKey !== this.azureKey || settings.azureRegion !== this.azureRegion) {
+        this.azureKey = settings.azureKey;
+        this.azureRegion = settings.azureRegion;
+        this.baseUrl = `https://${settings.azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
+      }
 
-      // Combine all blobs into one
-      const audioArrays = await Promise.all(
-        audioBlobs.map(blob => blob.arrayBuffer())
-      );
-      
-      const totalLength = audioArrays.reduce((acc, arr) => acc + arr.byteLength, 0);
-      const combinedArray = new Uint8Array(totalLength);
-      
-      let offset = 0;
-      audioArrays.forEach(array => {
-        combinedArray.set(new Uint8Array(array), offset);
-        offset += array.byteLength;
-      });
+      // Analyze text language
+      const analysis = analyzeTextLanguage(text);
+      console.log('Language analysis:', analysis);
 
-      return new Blob([combinedArray], { type: 'audio/mp3' });
+      // Get language-specific voice settings
+      const languageSettings = voiceSettings?.[analysis.dominant];
+      
+      // Determine final settings with proper fallback chain
+      const finalSettings = {
+        // Default settings
+        voice: 'en-US-JennyNeural',
+        rate: 1,
+        pitch: 1,
+        // Language-specific settings from storage
+        ...languageSettings,
+        // User-provided settings (override everything)
+        ...userSettings
+      };
+
+      console.log('Using voice settings:', finalSettings);
+
+      const sentences = this.splitIntoSentences(text);
+      
+      // Stop any currently playing audio
+      if (this.currentAudio) {
+        await this.stopAudio();
+      }
+
+      if (handlePlayback) {
+        try {
+          // Create a single context for all audio
+          const context = new (window.AudioContext || window.webkitAudioContext)();
+          await this.ensureAudioContext(context);
+          
+          // Process sentences sequentially
+          for (const sentence of sentences) {
+            const audioBlob = await this.synthesizeSingleChunk(sentence, finalSettings);
+            await this.playAudioChunk(audioBlob, finalSettings.rate, context);
+          }
+          
+          // Cleanup after all sentences
+          if (context && context.state !== 'closed') {
+            await context.close();
+          }
+        } catch (error) {
+          console.error('Audio playback failed:', error);
+          throw error;
+        }
+        return;
+      }
+
+      // If not handling playback, return all audio blobs
+      return Promise.all(sentences.map(sentence => 
+        this.synthesizeSingleChunk(sentence, finalSettings)
+      ));
     } catch (error) {
       console.error('Speech synthesis failed:', error);
       throw error;
@@ -286,21 +302,27 @@ export class TTSService {
       `https://${this.azureRegion}.tts.speech.microsoft.com/cognitiveservices/voices/list`,
       {
         headers: {
-          'Ocp-Apim-Subscription-Key': this.azureKey
+          'Ocp-Apim-Subscription-Key': this.azureKey,
+          'Content-Type': 'application/json'
         }
       }
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch voices (${response.status})`);
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch voices (${response.status}): ${errorText}`);
     }
 
     const voices = await response.json();
     
     // Group voices by locale
     const groupedVoices = voices.reduce((acc, voice) => {
-      const group = acc[voice.LocaleName] || [];
-      group.push({
+      const locale = voice.Locale;
+      if (!acc[locale]) {
+        acc[locale] = [];
+      }
+      
+      acc[locale].push({
         value: voice.ShortName,
         label: `${voice.DisplayName} (${voice.Gender})`,
         locale: voice.Locale,
@@ -308,7 +330,7 @@ export class TTSService {
         styles: voice.StyleList || [],
         isMultilingual: !!voice.SecondaryLocaleList
       });
-      acc[voice.LocaleName] = group;
+      
       return acc;
     }, {});
 
