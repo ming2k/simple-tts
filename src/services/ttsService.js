@@ -119,19 +119,23 @@ export class TTSService {
       // Get both API settings and voice settings
       const { settings, voiceSettings } = await browser.storage.local.get(['settings', 'voiceSettings']);
       
-      // Add debug logging
-      console.log('Stored voice settings:', voiceSettings);
-      
       // Analyze text language
       const analysis = analyzeTextLanguage(text);
-      console.log('Language analysis:', analysis);
-
-      // Get language-specific voice settings or default voice for the detected language
-      const languageSettings = voiceSettings?.[analysis.dominant] || {
-        voice: getDefaultVoice(analysis.dominant)
-      };
-      console.log('Language settings being used:', languageSettings);
+      console.log('Text language detected:', analysis.dominant);
+      console.log('Full voice settings:', voiceSettings);
       
+      // More explicit lookup of language settings
+      let languageSettings;
+      if (voiceSettings && voiceSettings[analysis.dominant]) {
+        languageSettings = voiceSettings[analysis.dominant];
+        console.log(`Found voice settings for ${analysis.dominant}:`, languageSettings);
+      } else {
+        languageSettings = {
+          voice: getDefaultVoice(analysis.dominant)
+        };
+        console.log(`Using default voice for ${analysis.dominant}:`, languageSettings);
+      }
+
       // Determine final settings with proper fallback chain
       const finalSettings = {
         rate: 1,
@@ -140,12 +144,13 @@ export class TTSService {
         ...userSettings
       };
 
-      // Force default voice if none is set
-      if (!finalSettings.voice) {
+      // Ensure we're using the correct voice
+      if (!finalSettings.voice || finalSettings.voice.startsWith('zh-')) {
+        console.warn('Incorrect voice detected, forcing to proper language voice');
         finalSettings.voice = getDefaultVoice(analysis.dominant);
       }
 
-      console.log('Final settings:', finalSettings);
+      console.log('Final settings to be used:', finalSettings);
 
       // Update instance credentials if needed
       if (settings.azureKey !== this.azureKey || settings.azureRegion !== this.azureRegion) {
