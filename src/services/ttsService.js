@@ -119,10 +119,33 @@ export class TTSService {
       // Get both API settings and voice settings
       const { settings, voiceSettings } = await browser.storage.local.get(['settings', 'voiceSettings']);
       
-      // Verify API settings
-      if (!settings?.azureKey || !settings?.azureRegion) {
-        throw new Error('Azure credentials not configured');
+      // Add debug logging
+      console.log('Stored voice settings:', voiceSettings);
+      
+      // Analyze text language
+      const analysis = analyzeTextLanguage(text);
+      console.log('Language analysis:', analysis);
+
+      // Get language-specific voice settings or default voice for the detected language
+      const languageSettings = voiceSettings?.[analysis.dominant] || {
+        voice: getDefaultVoice(analysis.dominant)
+      };
+      console.log('Language settings being used:', languageSettings);
+      
+      // Determine final settings with proper fallback chain
+      const finalSettings = {
+        rate: 1,
+        pitch: 1,
+        ...languageSettings,
+        ...userSettings
+      };
+
+      // Force default voice if none is set
+      if (!finalSettings.voice) {
+        finalSettings.voice = getDefaultVoice(analysis.dominant);
       }
+
+      console.log('Final settings:', finalSettings);
 
       // Update instance credentials if needed
       if (settings.azureKey !== this.azureKey || settings.azureRegion !== this.azureRegion) {
@@ -130,27 +153,6 @@ export class TTSService {
         this.azureRegion = settings.azureRegion;
         this.baseUrl = `https://${settings.azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
       }
-
-      // Analyze text language
-      const analysis = analyzeTextLanguage(text);
-      console.log('Language analysis:', analysis);
-
-      // Get language-specific voice settings
-      const languageSettings = voiceSettings?.[analysis.dominant];
-      
-      // Determine final settings with proper fallback chain
-      const finalSettings = {
-        // Default settings
-        voice: 'en-US-JennyNeural',
-        rate: 1,
-        pitch: 1,
-        // Language-specific settings from storage
-        ...languageSettings,
-        // User-provided settings (override everything)
-        ...userSettings
-      };
-
-      console.log('Using voice settings:', finalSettings);
 
       const sentences = this.splitIntoSentences(text);
       

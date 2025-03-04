@@ -25,7 +25,7 @@ function createMiniWindow() {
     padding: 12px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    display: flex;
+    display: none;  // Initially hidden
     align-items: center;
     gap: 12px;
     font-family: system-ui, -apple-system, sans-serif;
@@ -206,6 +206,9 @@ function initAudioPlayer() {
     let isPlaying = false;
     let currentAudioUrl = null;
 
+    // Store miniWindow reference globally
+    window.ttsMiniWindow = miniWindow;
+
     // Add event listeners for better initialization
     audio.addEventListener('canplay', () => {
       console.log('Audio ready to play');
@@ -254,7 +257,7 @@ function initAudioPlayer() {
 
     miniWindow.closeButton.onclick = () => {
       audio.pause();
-      miniWindow.container.remove();
+      miniWindow.container.style.display = 'none';
       if (currentAudioUrl) {
         URL.revokeObjectURL(currentAudioUrl);
       }
@@ -318,12 +321,16 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     switch (request.type) {
       case 'STOP_AUDIO':
         window.ttsPlayer?.stop();
+        const container = document.getElementById('tts-mini-window');
+        if (container) container.style.display = 'none';
         break;
       
       case 'PLAY_AUDIO':
         if (!window.ttsPlayer) {
           initAudioPlayer();
         }
+        const miniWindow = document.getElementById('tts-mini-window');
+        if (miniWindow) miniWindow.style.display = 'flex';
         await window.ttsPlayer.play(request.url, request.rate);
         break;
     }

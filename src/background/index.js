@@ -91,7 +91,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         throw new Error('Speech synthesis failed to generate audio');
       }
 
-      // Stop any currently playing audio
+      // Stop any currently playing audio and hide the window
       await browser.tabs.sendMessage(tab.id, { type: 'STOP_AUDIO' });
 
       // Combine all audio blobs into one
@@ -111,6 +111,8 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     } catch (error) {
       console.error('TTS error:', error);
       await showNotification('Text-to-Speech Error', `Failed to convert text to speech: ${error.message}`);
+      // Hide the window if there's an error
+      await browser.tabs.sendMessage(tab.id, { type: 'STOP_AUDIO' });
     }
   }
 });
@@ -155,5 +157,10 @@ async function showNotification(title, message) {
     alert(`${title}: ${message}`);
   }
 }
+
+// Add this somewhere in your code to debug
+browser.storage.local.get(['voiceSettings']).then(result => {
+  console.log('Current voice settings in storage:', result.voiceSettings);
+});
 
 
