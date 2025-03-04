@@ -5,13 +5,48 @@ export class TTSService {
     this.baseUrl = `https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
     this.maxCharsPerRequest = 1000;
     this.currentAudio = null;
+    this.isFirstPlay = true; // Track if this is the first playback
   }
 
   // Split text into sentences
   splitIntoSentences(text) {
-    // Split on period, question mark, or exclamation mark followed by space or newline
+    // First split into sentences
     const sentences = text.match(/[^.!?]+[.!?]+[\s\n]*/g) || [text];
-    return sentences.map(s => s.trim()).filter(s => s.length > 0);
+    const chunks = [];
+    
+    // Process each sentence
+    sentences.forEach(sentence => {
+      const trimmedSentence = sentence.trim();
+      if (trimmedSentence.length === 0) return;
+      
+      // If sentence is shorter than max chars, add it directly
+      if (trimmedSentence.length <= this.maxCharsPerRequest) {
+        chunks.push(trimmedSentence);
+        return;
+      }
+      
+      // Split long sentences at natural break points
+      let remainingText = trimmedSentence;
+      while (remainingText.length > this.maxCharsPerRequest) {
+        // Find the last comma, space, or natural break before maxCharsPerRequest
+        let splitIndex = remainingText.lastIndexOf(',', this.maxCharsPerRequest);
+        if (splitIndex === -1) splitIndex = remainingText.lastIndexOf(' ', this.maxCharsPerRequest);
+        
+        // If no natural break found, force split at maxCharsPerRequest
+        if (splitIndex === -1) splitIndex = this.maxCharsPerRequest;
+        
+        // Add the chunk and update remaining text
+        chunks.push(remainingText.substring(0, splitIndex).trim());
+        remainingText = remainingText.substring(splitIndex).trim();
+      }
+      
+      // Add any remaining text as the final chunk
+      if (remainingText.length > 0) {
+        chunks.push(remainingText);
+      }
+    });
+    
+    return chunks;
   }
 
   createSSML(text, voice = 'en-US-AvaMultilingualNeural', rate = 1, pitch = 1) {
@@ -175,18 +210,39 @@ export class TTSService {
         const context = existingContext || new (window.AudioContext || window.webkitAudioContext)();
         const source = context.createBufferSource();
         
-        // Store current audio for stopping later
         this.currentAudio = { context, source };
 
-        // Convert blob to audio buffer
         const arrayBuffer = await audioBlob.arrayBuffer();
         const audioBuffer = await context.decodeAudioData(arrayBuffer);
         
-        source.buffer = audioBuffer;
+        let bufferToPlay = audioBuffer;
+
+        // Only add silence padding for the first playback
+        if (this.isFirstPlay) {
+          const silenceDuration = 0.2; // 200ms of silence
+          const paddedBuffer = context.createBuffer(
+            audioBuffer.numberOfChannels,
+            Math.ceil((audioBuffer.duration + silenceDuration) * audioBuffer.sampleRate),
+            audioBuffer.sampleRate
+          );
+
+          for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+            const paddedData = paddedBuffer.getChannelData(channel);
+            const originalData = audioBuffer.getChannelData(channel);
+            const silenceSamples = Math.ceil(silenceDuration * audioBuffer.sampleRate);
+            
+            paddedData.fill(0, 0, silenceSamples);
+            paddedData.set(originalData, silenceSamples);
+          }
+          
+          bufferToPlay = paddedBuffer;
+          this.isFirstPlay = false;
+        }
+        
+        source.buffer = bufferToPlay;
         source.playbackRate.value = rate;
         source.connect(context.destination);
 
-        // Handle completion
         source.onended = () => {
           if (!existingContext) {
             context.close();
@@ -194,10 +250,7 @@ export class TTSService {
           resolve();
         };
 
-        // Ensure context is running
         await this.ensureAudioContext(context);
-        
-        // Start playback
         source.start(0);
       } catch (error) {
         console.error('Playback error:', error);
@@ -210,6 +263,7 @@ export class TTSService {
     let context;
     let source;
     let onEnded = () => {};
+    let isFirstPlay = true; // Track first play for this specific player
     
     const play = async () => {
       try {
@@ -219,11 +273,34 @@ export class TTSService {
         const arrayBuffer = await audioBlob.arrayBuffer();
         const audioBuffer = await context.decodeAudioData(arrayBuffer);
         
+        let bufferToPlay = audioBuffer;
+
+        // Only add silence padding for the first playback
+        if (isFirstPlay) {
+          const silenceDuration = 0.2;
+          const paddedBuffer = context.createBuffer(
+            audioBuffer.numberOfChannels,
+            Math.ceil((audioBuffer.duration + silenceDuration) * audioBuffer.sampleRate),
+            audioBuffer.sampleRate
+          );
+
+          for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+            const paddedData = paddedBuffer.getChannelData(channel);
+            const originalData = audioBuffer.getChannelData(channel);
+            const silenceSamples = Math.ceil(silenceDuration * audioBuffer.sampleRate);
+            
+            paddedData.fill(0, 0, silenceSamples);
+            paddedData.set(originalData, silenceSamples);
+          }
+          
+          bufferToPlay = paddedBuffer;
+          isFirstPlay = false;
+        }
+        
         source = context.createBufferSource();
-        source.buffer = audioBuffer;
+        source.buffer = bufferToPlay;
         source.connect(context.destination);
         
-        // Add ended event listener
         source.onended = () => {
           onEnded();
         };
