@@ -4,15 +4,7 @@ import styled from 'styled-components';
 import { languageConfig } from '../../../utils/languageConfig.js';
 import browser from 'webextension-polyfill';
 
-// Styled components for language tabs
-const LanguageTabs = styled.div`
-  display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-`;
-
+// First define the base LanguageTab
 const LanguageTab = styled.button`
   padding: 8px 16px;
   border: 1px solid ${props => props.$active ? '#2563eb' : '#e5e7eb'};
@@ -28,6 +20,37 @@ const LanguageTab = styled.button`
     border-color: #2563eb;
     color: ${props => props.$active ? 'white' : '#2563eb'};
   }
+`;
+
+// Then define the container components
+const LanguageTabs = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  justify-content: space-between;
+`;
+
+const MainLanguageTabs = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+
+// Then define components that extend LanguageTab
+const OtherLanguageTab = styled(LanguageTab)`
+  background: ${props => props.$active ? '#64748b' : 'white'};
+  border-color: ${props => props.$active ? '#64748b' : '#e5e7eb'};
+  
+  &:hover {
+    border-color: #64748b;
+    color: ${props => props.$active ? 'white' : '#64748b'};
+  }
+`;
+
+const DraggableLanguageTab = styled(LanguageTab)`
+  cursor: move;
+  touch-action: none;
 `;
 
 const LanguageSettings = styled.div`
@@ -83,6 +106,51 @@ const OtherLanguagesSelect = styled.select`
   }
 `;
 
+// Add these styled components near the top with other styled components
+const PinButton = styled.button`
+  padding: 4px 8px;
+  background: ${props => props.$pinned ? '#e5e7eb' : 'transparent'};
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  
+  &:hover {
+    background: ${props => props.$pinned ? '#d1d5db' : '#f3f4f6'};
+  }
+`;
+
+const LanguageHeader = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+`;
+
+// Modify the DEFAULT_MAIN_LANGUAGES constant to use abbreviations
+const DEFAULT_MAIN_LANGUAGES = {
+  en: { name: 'EN', order: 1, pinned: true },
+  zh: { name: 'ZH', order: 2, pinned: true },
+  ja: { name: 'JA', order: 3, pinned: true },
+  other: { name: 'Other', order: 4, pinned: true }
+};
+
+// First, add this styled component for the pin button in the Other Languages section
+const OtherLanguagePinButton = styled(PinButton)`
+  margin-top: 16px;
+  width: 100%;
+  justify-content: center;
+`;
+
+// Add a function to get language abbreviation
+const getLanguageAbbreviation = (langCode) => {
+  return langCode.toUpperCase();
+};
+
 export function VoiceSettings({ 
   settings,  // Now only contains API settings
   selectedLocale, 
@@ -110,6 +178,12 @@ export function VoiceSettings({
 
   // Initialize internalLocale with selectedLocale prop
   const [internalLocale, setInternalLocale] = useState(selectedLocale || '');
+
+  const [pinnedLanguages, setPinnedLanguages] = useState({});
+  const [mainLanguages, setMainLanguages] = useState(DEFAULT_MAIN_LANGUAGES);
+
+  // Add drag and drop functionality
+  const [draggedLang, setDraggedLang] = useState(null);
 
   useEffect(() => {
     // Load saved voice settings for all languages
@@ -143,6 +217,26 @@ export function VoiceSettings({
     }
   }, [selectedLocale]);
 
+  // Load pinned languages on component mount
+  useEffect(() => {
+    browser.storage.local.get('pinnedLanguages').then(result => {
+      if (result.pinnedLanguages) {
+        setPinnedLanguages(result.pinnedLanguages);
+        // Update mainLanguages with saved pinned states
+        setMainLanguages(prev => ({
+          ...prev,
+          ...Object.keys(result.pinnedLanguages).reduce((acc, lang) => ({
+            ...acc,
+            [lang]: {
+              ...prev[lang],
+              pinned: result.pinnedLanguages[lang]
+            }
+          }), {})
+        }));
+      }
+    });
+  }, []);
+
   // Save language-specific settings
   const saveVoiceSettings = async (langCode, settings) => {
     const newVoiceSettings = {
@@ -157,12 +251,22 @@ export function VoiceSettings({
   // Get all available language codes from voices
   const getAvailableLanguages = () => {
     const languages = new Set();
-    Object.keys(groupedVoices).forEach(locale => {
-      const langCode = locale.split('-')[0];
-      if (!MAIN_LANGUAGES[langCode]) {
-        languages.add(locale.split('-')[0]);
+    
+    // Add unpinned main languages
+    Object.entries(mainLanguages).forEach(([langCode, lang]) => {
+      if (langCode !== 'other' && !lang.pinned) {
+        languages.add(langCode);
       }
     });
+
+    // Add other available languages
+    Object.keys(groupedVoices).forEach(locale => {
+      const langCode = locale.split('-')[0];
+      if (!MAIN_LANGUAGES[langCode] || !mainLanguages[langCode]?.pinned) {
+        languages.add(langCode);
+      }
+    });
+
     return Array.from(languages).sort();
   };
 
@@ -172,7 +276,8 @@ export function VoiceSettings({
       return Object.entries(groupedVoices)
         .filter(([locale]) => {
           const localeLang = locale.split('-')[0];
-          return !MAIN_LANGUAGES[localeLang];
+          // Include both non-main languages and unpinned main languages
+          return !mainLanguages[localeLang]?.pinned;
         })
         .reduce((acc, [locale, voices]) => {
           acc[locale] = voices;
@@ -217,13 +322,13 @@ export function VoiceSettings({
     }
   };
 
+  // Modify the handleLocaleChange function to use proper abbreviation
   const handleLocaleChange = async (e) => {
     const newLocale = e.target.value;
     setInternalLocale(newLocale);
     
     if (newLocale) {
       try {
-        // First update the selected locale
         setSelectedLocale(newLocale);
 
         if (!groupedVoices[newLocale] || groupedVoices[newLocale].length === 0) {
@@ -240,6 +345,22 @@ export function VoiceSettings({
           
           await saveVoiceSettings(langCode, newSettings);
           setCurrentSettings(newSettings);
+
+          // Add the new language to mainLanguages if it doesn't exist
+          if (!mainLanguages[langCode]) {
+            const newLang = {
+              name: getLanguageAbbreviation(langCode),
+              order: Object.keys(mainLanguages).length + 1,
+              pinned: false
+            };
+            const updatedMainLanguages = {
+              ...mainLanguages,
+              [langCode]: newLang
+            };
+            setMainLanguages(updatedMainLanguages);
+            // Save to storage immediately
+            await browser.storage.local.set({ mainLanguages: updatedMainLanguages });
+          }
         }
       } catch (error) {
         console.error('Failed to load voices for locale:', error);
@@ -265,6 +386,108 @@ export function VoiceSettings({
     }));
   };
 
+  // Add this function to handle pinning/unpinning languages
+  const handlePinLanguage = async (langCode) => {
+    const newPinnedState = !mainLanguages[langCode]?.pinned;
+    
+    // Update local state
+    setMainLanguages(prev => {
+      const updated = { ...prev };
+      updated[langCode] = {
+        ...updated[langCode],
+        pinned: newPinnedState
+      };
+
+      // If unpinning, adjust orders of remaining pinned languages
+      if (!newPinnedState) {
+        const pinnedLangs = Object.entries(updated)
+          .filter(([code, lang]) => lang.pinned && code !== 'other')
+          .sort((a, b) => a[1].order - b[1].order);
+        
+        // Reorder remaining pinned languages
+        pinnedLangs.forEach((lang, index) => {
+          updated[lang[0]].order = index + 1;
+        });
+      }
+
+      return updated;
+    });
+
+    // Save to storage
+    const newPinnedLanguages = {
+      ...pinnedLanguages,
+      [langCode]: newPinnedState
+    };
+    setPinnedLanguages(newPinnedLanguages);
+    
+    // Save both states
+    await browser.storage.local.set({ 
+      pinnedLanguages: newPinnedLanguages,
+      mainLanguages: mainLanguages 
+    });
+  };
+
+  // Add drag and drop functionality
+  const handleDragStart = (langCode) => {
+    setDraggedLang(langCode);
+  };
+
+  const handleDragOver = (e, langCode) => {
+    e.preventDefault();
+    if (draggedLang && draggedLang !== langCode) {
+      const draggedOrder = mainLanguages[draggedLang].order;
+      const targetOrder = mainLanguages[langCode].order;
+      
+      setMainLanguages(prev => {
+        const updated = { ...prev };
+        // Update orders
+        Object.keys(updated).forEach(key => {
+          const lang = updated[key];
+          if (draggedOrder < targetOrder) {
+            if (lang.order > draggedOrder && lang.order <= targetOrder) {
+              lang.order--;
+            }
+          } else {
+            if (lang.order >= targetOrder && lang.order < draggedOrder) {
+              lang.order++;
+            }
+          }
+        });
+        updated[draggedLang].order = targetOrder;
+        return updated;
+      });
+    }
+  };
+
+  const handleDragEnd = async () => {
+    setDraggedLang(null);
+    // Save both mainLanguages and pinnedLanguages to storage
+    await browser.storage.local.set({ 
+      mainLanguages: mainLanguages,
+      pinnedLanguages: pinnedLanguages 
+    });
+  };
+
+  // Add an effect to load mainLanguages from storage on mount
+  useEffect(() => {
+    browser.storage.local.get(['mainLanguages', 'pinnedLanguages']).then(result => {
+      if (result.mainLanguages) {
+        // Ensure all languages have proper abbreviations
+        const updatedMainLanguages = Object.entries(result.mainLanguages).reduce((acc, [code, lang]) => {
+          acc[code] = {
+            ...lang,
+            name: code === 'other' ? 'Other' : getLanguageAbbreviation(code)
+          };
+          return acc;
+        }, {});
+        setMainLanguages(updatedMainLanguages);
+      }
+      if (result.pinnedLanguages) {
+        setPinnedLanguages(result.pinnedLanguages);
+      }
+    });
+  }, []);
+
   return (
     <Section>
       <h2>Voice Settings</h2>
@@ -273,42 +496,87 @@ export function VoiceSettings({
       ) : (
         <>
           <LanguageTabs>
-            {Object.entries(MAIN_LANGUAGES).map(([langCode, lang]) => (
-              <LanguageTab
-                key={langCode}
-                $active={activeLanguage === langCode}
-                onClick={() => handleLanguageChange(langCode)}
-              >
-                {lang.name}
-              </LanguageTab>
-            ))}
+            <MainLanguageTabs>
+              {Object.entries(mainLanguages)
+                .filter(([langCode, lang]) => lang.pinned && langCode !== 'other')
+                .sort((a, b) => a[1].order - b[1].order)
+                .map(([langCode, lang]) => (
+                  <DraggableLanguageTab
+                    key={langCode}
+                    $active={activeLanguage === langCode}
+                    onClick={() => handleLanguageChange(langCode)}
+                    draggable
+                    onDragStart={() => handleDragStart(langCode)}
+                    onDragOver={(e) => handleDragOver(e, langCode)}
+                    onDragEnd={handleDragEnd}
+                  >
+                    {lang.name}
+                  </DraggableLanguageTab>
+                ))}
+            </MainLanguageTabs>
+            <OtherLanguageTab
+              $active={activeLanguage === 'other'}
+              onClick={() => handleLanguageChange('other')}
+            >
+              {mainLanguages.other.name}
+            </OtherLanguageTab>
           </LanguageTabs>
 
           <LanguageSettings>
-            {activeLanguage === 'other' && (
-              <InputGroup>
-                <label htmlFor="otherLanguages">Select Language:</label>
-                <OtherLanguagesSelect
-                  id="otherLanguages"
-                  value={selectedLocale?.split('-')[0] || ''}
-                  onChange={(e) => {
-                    const langCode = e.target.value;
-                    const firstLocale = Object.keys(filteredVoices).find(
-                      locale => locale.startsWith(langCode)
-                    );
-                    if (firstLocale) {
-                      handleLocaleChange({ target: { value: firstLocale } });
-                    }
-                  }}
+            <LanguageHeader>
+              <h3>
+                {activeLanguage === 'other' 
+                  ? 'Other Languages'
+                  : `${mainLanguages[activeLanguage]?.name} - ${languageConfig[activeLanguage]?.name || activeLanguage.toUpperCase()}`}
+              </h3>
+              {activeLanguage !== 'other' && (
+                <PinButton
+                  $pinned={mainLanguages[activeLanguage]?.pinned}
+                  onClick={() => handlePinLanguage(activeLanguage)}
                 >
-                  <option value="">Select a language</option>
-                  {getAvailableLanguages().map(lang => (
-                    <option key={lang} value={lang}>
-                      {lang.toUpperCase()}
-                    </option>
-                  ))}
-                </OtherLanguagesSelect>
-              </InputGroup>
+                  {mainLanguages[activeLanguage]?.pinned ? '📌 Pinned' : '📍 Pin'}
+                </PinButton>
+              )}
+            </LanguageHeader>
+
+            {activeLanguage === 'other' && (
+              <>
+                <InputGroup>
+                  <label htmlFor="otherLanguages">Select Language:</label>
+                  <OtherLanguagesSelect
+                    id="otherLanguages"
+                    value={selectedLocale?.split('-')[0] || ''}
+                    onChange={(e) => {
+                      const langCode = e.target.value;
+                      const firstLocale = Object.keys(filteredVoices).find(
+                        locale => locale.startsWith(langCode)
+                      );
+                      if (firstLocale) {
+                        handleLocaleChange({ target: { value: firstLocale } });
+                      }
+                    }}
+                  >
+                    <option value="">Select a language</option>
+                    {getAvailableLanguages().map(lang => (
+                      <option key={lang} value={lang}>
+                        {lang.toUpperCase()}
+                      </option>
+                    ))}
+                  </OtherLanguagesSelect>
+                </InputGroup>
+
+                {/* Add pin button for selected other language */}
+                {selectedLocale && currentSettings.voice && (
+                  <OtherLanguagePinButton
+                    $pinned={mainLanguages[selectedLocale.split('-')[0]]?.pinned}
+                    onClick={() => handlePinLanguage(selectedLocale.split('-')[0])}
+                  >
+                    {mainLanguages[selectedLocale.split('-')[0]]?.pinned 
+                      ? '📌 Remove from Quick Access' 
+                      : '📍 Add to Quick Access'}
+                  </OtherLanguagePinButton>
+                )}
+              </>
             )}
 
             <InputGroup>
