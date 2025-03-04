@@ -5,3 +5,8 @@ dev/
 .env
 .env.local
 .env.*.local 
+
+# Archive files
+*.zip
+*.xpi
+*.crx
