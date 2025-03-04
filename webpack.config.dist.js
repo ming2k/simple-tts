@@ -11,7 +11,8 @@ const configs = browsers.map(browser => ({
     popup: './src/popup/index.jsx',
     settings: './src/settings/index.jsx',
     onboarding: './src/onboarding/index.js',
-    background: './src/background/index.js'
+    background: './src/background/index.js',
+    content: './src/content/index.js'
   },
   output: getOutput(browser, 'production'),
   module: {
