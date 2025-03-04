@@ -6,6 +6,7 @@ export class TTSService {
     this.maxCharsPerRequest = 1000;
     this.currentAudio = null;
     this.isFirstPlay = true; // Track if this is the first playback
+    this.audioContext = null; // Add this to track our initialized context
   }
 
   // Split text into sentences
@@ -197,9 +198,6 @@ export class TTSService {
         this.currentAudio.source.stop();
         this.currentAudio.source.disconnect();
       }
-      if (this.currentAudio.context && this.currentAudio.context.state !== 'closed') {
-        await this.currentAudio.context.close();
-      }
       this.currentAudio = null;
     }
   }
@@ -207,7 +205,8 @@ export class TTSService {
   async playAudioChunk(audioBlob, rate = 1, existingContext = null) {
     return new Promise(async (resolve, reject) => {
       try {
-        const context = existingContext || new (window.AudioContext || window.webkitAudioContext)();
+        // Use existing context or get the initialized one
+        const context = existingContext || await this.initAudioContext();
         const source = context.createBufferSource();
         
         this.currentAudio = { context, source };
@@ -215,42 +214,19 @@ export class TTSService {
         const arrayBuffer = await audioBlob.arrayBuffer();
         const audioBuffer = await context.decodeAudioData(arrayBuffer);
         
-        let bufferToPlay = audioBuffer;
-
-        // Only add silence padding for the first playback
-        if (this.isFirstPlay) {
-          const silenceDuration = 0.2; // 200ms of silence
-          const paddedBuffer = context.createBuffer(
-            audioBuffer.numberOfChannels,
-            Math.ceil((audioBuffer.duration + silenceDuration) * audioBuffer.sampleRate),
-            audioBuffer.sampleRate
-          );
-
-          for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-            const paddedData = paddedBuffer.getChannelData(channel);
-            const originalData = audioBuffer.getChannelData(channel);
-            const silenceSamples = Math.ceil(silenceDuration * audioBuffer.sampleRate);
-            
-            paddedData.fill(0, 0, silenceSamples);
-            paddedData.set(originalData, silenceSamples);
-          }
-          
-          bufferToPlay = paddedBuffer;
-          this.isFirstPlay = false;
-        }
-        
-        source.buffer = bufferToPlay;
+        source.buffer = audioBuffer;
         source.playbackRate.value = rate;
         source.connect(context.destination);
 
         source.onended = () => {
           if (!existingContext) {
-            context.close();
+            // Don't close the context, just disconnect the source
+            source.disconnect();
           }
           resolve();
         };
 
-        await this.ensureAudioContext(context);
+        // Context is already ensured to be running by initAudioContext
         source.start(0);
       } catch (error) {
         console.error('Playback error:', error);
@@ -260,45 +236,19 @@ export class TTSService {
   }
 
   createAudioPlayer(audioBlob) {
-    let context;
     let source;
     let onEnded = () => {};
-    let isFirstPlay = true; // Track first play for this specific player
     
     const play = async () => {
       try {
-        context = new (window.AudioContext || window.webkitAudioContext)();
-        await this.ensureAudioContext(context);
+        // Use the shared initialized context
+        const context = await this.initAudioContext();
         
         const arrayBuffer = await audioBlob.arrayBuffer();
         const audioBuffer = await context.decodeAudioData(arrayBuffer);
         
-        let bufferToPlay = audioBuffer;
-
-        // Only add silence padding for the first playback
-        if (isFirstPlay) {
-          const silenceDuration = 0.2;
-          const paddedBuffer = context.createBuffer(
-            audioBuffer.numberOfChannels,
-            Math.ceil((audioBuffer.duration + silenceDuration) * audioBuffer.sampleRate),
-            audioBuffer.sampleRate
-          );
-
-          for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-            const paddedData = paddedBuffer.getChannelData(channel);
-            const originalData = audioBuffer.getChannelData(channel);
-            const silenceSamples = Math.ceil(silenceDuration * audioBuffer.sampleRate);
-            
-            paddedData.fill(0, 0, silenceSamples);
-            paddedData.set(originalData, silenceSamples);
-          }
-          
-          bufferToPlay = paddedBuffer;
-          isFirstPlay = false;
-        }
-        
         source = context.createBufferSource();
-        source.buffer = bufferToPlay;
+        source.buffer = audioBuffer;
         source.connect(context.destination);
         
         source.onended = () => {
@@ -319,9 +269,7 @@ export class TTSService {
           source.stop();
           source.disconnect();
         }
-        if (context && context.state !== 'closed') {
-          await context.close();
-        }
+        // Don't close the shared context
       },
       set onEnded(callback) {
         onEnded = callback;
@@ -365,5 +313,34 @@ export class TTSService {
     }, {});
 
     return groupedVoices;
+  }
+
+  // Add this new method to initialize and warm up the audio context
+  async initAudioContext() {
+    if (!this.audioContext) {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Create and play a silent buffer to warm up the audio system
+      const silentBuffer = this.audioContext.createBuffer(1, 1, 22050);
+      const source = this.audioContext.createBufferSource();
+      source.buffer = silentBuffer;
+      source.connect(this.audioContext.destination);
+      source.start();
+      
+      // Wait for the context to be running
+      if (this.audioContext.state !== 'running') {
+        await new Promise((resolve) => {
+          const checkState = () => {
+            if (this.audioContext.state === 'running') {
+              resolve();
+            } else {
+              requestAnimationFrame(checkState);
+            }
+          };
+          checkState();
+        });
+      }
+    }
+    return this.audioContext;
   }
 } 
