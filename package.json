@@ -14,7 +14,13 @@
     "clean:firefox": "rm -rf dist/firefox dev/firefox",
     "clean:chrome": "rm -rf dist/chrome dev/chrome",
     "lint": "eslint src/**/*.{js,jsx}",
-    "format": "prettier --write src/**/*.{js,jsx,css,html}"
+    "format": "prettier --write src/**/*.{js,jsx,css,html}",
+    "zip": "npm run zip:chrome && npm run zip:firefox",
+    "zip:chrome": "cd dist/chrome && zip -r ../../simple-tts-chrome.zip .",
+    "zip:firefox": "cd dist/firefox && zip -r ../../simple-tts-firefox.zip .",
+    "package": "npm run build && npm run zip",
+    "package:chrome": "npm run build:chrome && npm run zip:chrome",
+    "package:firefox": "npm run build:firefox && npm run zip:firefox"
   },
   "dependencies": {
     "loglevel": "^1.9.2",
