@@ -41,6 +41,95 @@ export function getVoicesForRegion(regionCode) {
 }
 
 /**
+ * Analyze text and determine language composition with percentages
+ * @param {string} text - Text to analyze
+ * @returns {Object} Language composition with percentages and dominant language
+ */
+export function analyzeTextLanguage(text) {
+  if (!text) return { dominant: 'en', composition: {} };
+
+  // Define regex patterns for different character types
+  const patterns = {
+    zh: {
+      name: 'Chinese',
+      pattern: /[\u4E00-\u9FFF\u3400-\u4DBF]/g,  // Chinese characters
+    },
+    ja: {
+      name: 'Japanese',
+      pattern: /[\u3040-\u309F\u30A0-\u30FF]/g,  // Hiragana and Katakana
+    },
+    en: {
+      name: 'English/Latin',
+      pattern: /[a-zA-Z]/g,  // Latin alphabet
+    },
+    num: {
+      name: 'Numbers',
+      pattern: /[0-9]/g,  // Numbers
+    }
+  };
+
+  // Count characters for each language
+  const counts = {};
+  let totalCount = 0;
+
+  // Initialize counts
+  Object.keys(patterns).forEach(lang => {
+    counts[lang] = 0;
+  });
+
+  // Count meaningful characters (excluding spaces and punctuation)
+  const meaningfulText = text.replace(/[\s\p{P}]/gu, '');
+  
+  // Count characters for each language
+  Object.entries(patterns).forEach(([lang, { pattern }]) => {
+    const matches = meaningfulText.match(pattern);
+    counts[lang] = matches ? matches.length : 0;
+    totalCount += counts[lang];
+  });
+
+  // Calculate percentages and find dominant language
+  const composition = {};
+  let maxPercentage = 0;
+  let dominant = 'en'; // Default to English
+
+  Object.entries(counts).forEach(([lang, count]) => {
+    const percentage = totalCount > 0 ? (count / totalCount) * 100 : 0;
+    composition[lang] = {
+      count,
+      percentage: Math.round(percentage * 100) / 100, // Round to 2 decimal places
+      name: patterns[lang].name
+    };
+
+    // Update dominant language (excluding numbers)
+    if (lang !== 'num' && percentage > maxPercentage) {
+      maxPercentage = percentage;
+      dominant = lang;
+    }
+  });
+
+  // Special case: if Chinese percentage is significant (> 20%), consider it Chinese
+  if (composition.zh.percentage > 20) {
+    dominant = 'zh';
+  }
+
+  return {
+    dominant,
+    composition,
+    confidence: maxPercentage / 100
+  };
+}
+
+/**
+ * Simple function to determine if text is primarily Chinese
+ * @param {string} text - Text to analyze
+ * @returns {boolean} True if text is primarily Chinese
+ */
+export function isPrimarilyChinese(text) {
+  const analysis = analyzeTextLanguage(text);
+  return analysis.dominant === 'zh';
+}
+
+/**
  * Detect language from text
  */
 export function detectLanguage(text) {
