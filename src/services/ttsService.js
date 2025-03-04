@@ -82,31 +82,36 @@ export class TTSService {
       throw new Error('Azure credentials not configured');
     }
 
-    const pitchPercent = ((settings.pitch || 1) - 1) * 100;
-    const ssml = this.createSSML(
-      text,
-      settings.voice,
-      settings.rate || 1,
-      pitchPercent
-    );
+    try {
+      const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+      const ssml = this.createSSML(
+        text,
+        settings.voice,
+        settings.rate || 1,
+        pitchPercent
+      );
 
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Ocp-Apim-Subscription-Key': this.azureKey,
-        'Content-Type': 'application/ssml+xml',
-        'X-Microsoft-OutputFormat': 'audio-16khz-128kbitrate-mono-mp3',
-        'User-Agent': 'TTS-Browser-Extension',
-      },
-      body: ssml
-    });
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Ocp-Apim-Subscription-Key': this.azureKey,
+          'Content-Type': 'application/ssml+xml',
+          'X-Microsoft-OutputFormat': 'audio-16khz-128kbitrate-mono-mp3',
+          'User-Agent': 'TTS-Browser-Extension',
+        },
+        body: ssml
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Speech synthesis failed (${response.status}): ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Speech synthesis failed (${response.status}): ${errorText}`);
+      }
+
+      return response.blob();
+    } catch (error) {
+      console.error('Error in synthesizeSingleChunk:', error);
+      throw error;
     }
-
-    return response.blob();
   }
 
   async synthesizeSpeech(text, userSettings = {}, handlePlayback = false) {
@@ -156,17 +161,22 @@ export class TTSService {
 
       if (handlePlayback) {
         try {
-          // Create a single context for all audio
           const context = new (window.AudioContext || window.webkitAudioContext)();
           await this.ensureAudioContext(context);
           
-          // Process sentences sequentially
           for (const sentence of sentences) {
-            const audioBlob = await this.synthesizeSingleChunk(sentence, finalSettings);
-            await this.playAudioChunk(audioBlob, finalSettings.rate, context);
+            try {
+              const audioBlob = await this.synthesizeSingleChunk(sentence, finalSettings);
+              if (!audioBlob) {
+                throw new Error('No audio data received from synthesis');
+              }
+              await this.playAudioChunk(audioBlob, finalSettings.rate, context);
+            } catch (error) {
+              console.error('Error processing sentence:', sentence, error);
+              throw error;
+            }
           }
           
-          // Cleanup after all sentences
           if (context && context.state !== 'closed') {
             await context.close();
           }
@@ -177,10 +187,18 @@ export class TTSService {
         return;
       }
 
-      // If not handling playback, return all audio blobs
-      return Promise.all(sentences.map(sentence => 
-        this.synthesizeSingleChunk(sentence, finalSettings)
-      ));
+      // If not handling playback, synthesize all chunks and return array of blobs
+      const audioBlobs = await Promise.all(
+        sentences.map(sentence => this.synthesizeSingleChunk(sentence, finalSettings))
+      );
+
+      // Validate that we have valid blobs
+      if (!audioBlobs.every(blob => blob instanceof Blob)) {
+        throw new Error('Failed to synthesize one or more audio chunks');
+      }
+
+      return audioBlobs;
+
     } catch (error) {
       console.error('Speech synthesis failed:', error);
       throw error;
@@ -221,29 +239,46 @@ export class TTSService {
   async playAudioChunk(audioBlob, rate = 1, existingContext = null) {
     return new Promise(async (resolve, reject) => {
       try {
+        console.log('Received audioBlob:', audioBlob);
+        console.log('Type of audioBlob:', typeof audioBlob);
+        console.log('Is Blob?', audioBlob instanceof Blob);
+        
+        // If we didn't get a Blob, try to create one
+        if (!(audioBlob instanceof Blob)) {
+          if (audioBlob instanceof ArrayBuffer) {
+            audioBlob = new Blob([audioBlob], { type: 'audio/mpeg' });
+          } else {
+            console.error('Invalid audio data received:', audioBlob);
+            throw new Error('Invalid audio data received');
+          }
+        }
+
         // Use existing context or get the initialized one
         const context = existingContext || await this.initAudioContext();
         const source = context.createBufferSource();
         
         this.currentAudio = { context, source };
 
-        const arrayBuffer = await audioBlob.arrayBuffer();
-        const audioBuffer = await context.decodeAudioData(arrayBuffer);
-        
-        source.buffer = audioBuffer;
-        source.playbackRate.value = rate;
-        source.connect(context.destination);
+        try {
+          const arrayBuffer = await audioBlob.arrayBuffer();
+          const audioBuffer = await context.decodeAudioData(arrayBuffer);
+          
+          source.buffer = audioBuffer;
+          source.playbackRate.value = rate;
+          source.connect(context.destination);
 
-        source.onended = () => {
-          if (!existingContext) {
-            // Don't close the context, just disconnect the source
-            source.disconnect();
-          }
-          resolve();
-        };
+          source.onended = () => {
+            if (!existingContext) {
+              source.disconnect();
+            }
+            resolve();
+          };
 
-        // Context is already ensured to be running by initAudioContext
-        source.start(0);
+          source.start(0);
+        } catch (error) {
+          console.error('Error processing audio data:', error);
+          throw error;
+        }
       } catch (error) {
         console.error('Playback error:', error);
         reject(error);

@@ -57,18 +57,21 @@ function Popup() {
       }
 
       const tts = new TTSService(settings.azureKey, settings.azureRegion);
-      const audioBlob = await tts.synthesizeSpeech(text, {
+      const audioBlobs = await tts.synthesizeSpeech(text, {
         voice: settings.voice,
         rate: settings.rate,
         pitch: settings.pitch
       });
 
-      if (!audioBlob) {
+      if (!audioBlobs || !audioBlobs.length) {
         throw new Error('Failed to generate speech');
       }
 
+      // Combine all blobs into one
+      const combinedBlob = new Blob(audioBlobs, { type: 'audio/mp3' });
+
       // Create audio player
-      const player = tts.createAudioPlayer(audioBlob);
+      const player = tts.createAudioPlayer(combinedBlob);
       setAudioPlayer(player);
 
       // Play the audio

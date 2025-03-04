@@ -82,22 +82,21 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
       
       const ttsService = new TTSService(settings.azureKey, settings.azureRegion);
       
-      const audioBlob = await ttsService.synthesizeSpeech(info.selectionText, {
+      const audioBlobs = await ttsService.synthesizeSpeech(info.selectionText, {
         voice: settings.voice,
         rate: settings.rate,
         pitch: settings.pitch
       });
       
-      if (!audioBlob) {
+      if (!audioBlobs || !audioBlobs.length) {
         throw new Error('Speech synthesis failed to generate audio');
       }
 
-      // Convert blob to base64
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const base64Audio = btoa(
-        new Uint8Array(arrayBuffer)
-          .reduce((data, byte) => data + String.fromCharCode(byte), '')
-      );
+      // Combine all audio blobs into one
+      const combinedBlob = new Blob(audioBlobs, { type: 'audio/mp3' });
+      
+      // Create object URL directly from blob
+      const audioUrl = URL.createObjectURL(combinedBlob);
 
       // Inject the audio player HTML and script
       await browser.tabs.executeScript(tab.id, {
@@ -162,17 +161,8 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
             audio.id = 'simple-tts-audio';
             audio.style.display = 'none';
             
-            // Convert base64 back to blob
-            const byteCharacters = atob('${base64Audio}');
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: 'audio/mp3' });
-            
-            // Set audio source
-            audio.src = URL.createObjectURL(blob);
+            // Set audio source directly from URL
+            audio.src = '${audioUrl}';
             audio.playbackRate = ${settings.rate || 1};
 
             // Create status icon
@@ -222,7 +212,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
             
             audio.onended = () => {
               container.remove();
-              URL.revokeObjectURL(audio.src);
+              URL.revokeObjectURL('${audioUrl}');
             };
 
             toggleButton.onclick = () => {
@@ -243,7 +233,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
             closeButton.onclick = () => {
               audio.pause();
               container.remove();
-              URL.revokeObjectURL(audio.src);
+              URL.revokeObjectURL('${audioUrl}');
             };
 
             // Assemble the player
