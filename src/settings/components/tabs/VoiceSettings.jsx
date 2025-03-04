@@ -91,7 +91,7 @@ export function VoiceSettings({
   isSaving, 
   voicesError,
   onFetchVoices,
-  setSelectedLocale  // Add this prop
+  setSelectedLocale
 }) {
   const [activeLanguage, setActiveLanguage] = useState(() => {
     if (settings.voice) {
@@ -108,6 +108,9 @@ export function VoiceSettings({
     pitch: 1
   });
 
+  // Initialize internalLocale with selectedLocale prop
+  const [internalLocale, setInternalLocale] = useState(selectedLocale || '');
+
   useEffect(() => {
     // Load saved voice settings for all languages
     browser.storage.local.get('voiceSettings').then(result => {
@@ -115,11 +118,30 @@ export function VoiceSettings({
         setVoiceSettings(result.voiceSettings);
         // Set current settings based on active language if available
         if (activeLanguage && result.voiceSettings[activeLanguage]) {
-          setCurrentSettings(result.voiceSettings[activeLanguage]);
+          const savedSettings = result.voiceSettings[activeLanguage];
+          setCurrentSettings(savedSettings);
+          
+          // Restore the locale from the saved voice
+          if (savedSettings.voice) {
+            const locale = Object.keys(groupedVoices).find(locale => 
+              groupedVoices[locale]?.some(voice => voice.value === savedSettings.voice)
+            );
+            if (locale) {
+              setInternalLocale(locale);
+              setSelectedLocale(locale);
+            }
+          }
         }
       }
     });
-  }, []);
+  }, [activeLanguage, groupedVoices, setSelectedLocale]); // Add dependencies
+
+  // Add effect to sync internalLocale with selectedLocale prop
+  useEffect(() => {
+    if (selectedLocale) {
+      setInternalLocale(selectedLocale);
+    }
+  }, [selectedLocale]);
 
   // Save language-specific settings
   const saveVoiceSettings = async (langCode, settings) => {
@@ -173,11 +195,31 @@ export function VoiceSettings({
     const savedSettings = voiceSettings[langCode];
     if (savedSettings) {
       setCurrentSettings(savedSettings);
+      // Restore the locale from the saved voice
+      if (savedSettings.voice) {
+        const locale = Object.keys(groupedVoices).find(locale => 
+          groupedVoices[locale]?.some(voice => voice.value === savedSettings.voice)
+        );
+        if (locale) {
+          setInternalLocale(locale);
+          setSelectedLocale(locale);
+        }
+      }
+    } else {
+      // Reset settings if no saved settings exist
+      setCurrentSettings({
+        voice: '',
+        rate: 1,
+        pitch: 1
+      });
+      setInternalLocale('');
+      setSelectedLocale('');
     }
   };
 
   const handleLocaleChange = async (e) => {
     const newLocale = e.target.value;
+    setInternalLocale(newLocale);
     
     if (newLocale) {
       try {
