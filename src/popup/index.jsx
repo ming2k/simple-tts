@@ -14,14 +14,12 @@ function Popup() {
   const [status, setStatus] = useState("");
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [audioPlayer, setAudioPlayer] = useState(null);
-  const [isMiniMode, setIsMiniMode] = useState(false);
 
   useEffect(() => {
     browser.storage.local
-      .get(["onboardingCompleted", "lastInput", "miniMode"])
+      .get(["onboardingCompleted", "lastInput"])
       .then((result) => {
         setOnboardingCompleted(result.onboardingCompleted || false);
-        setIsMiniMode(result.miniMode || false);
         if (result.lastInput) {
           setText(result.lastInput);
         }
@@ -101,12 +99,6 @@ function Popup() {
     }
   };
 
-  const toggleMiniMode = async () => {
-    const newMiniMode = !isMiniMode;
-    setIsMiniMode(newMiniMode);
-    await browser.storage.local.set({ miniMode: newMiniMode });
-  };
-
   const handleStop = async () => {
     try {
       if (audioPlayer) {
@@ -138,37 +130,11 @@ function Popup() {
     );
   }
 
-  if (isMiniMode) {
-    return (
-      <div className="mini-popup-container">
-        <div className="mini-content">
-          <div className="mini-logo" onClick={toggleMiniMode} title="Expand">
-            <svg width="32" height="32" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-              <rect width="48" height="48" rx="8" fill="var(--text-accent)"/>
-              <text x="24" y="32" fontFamily="Arial" fontSize="32" fill="var(--text-white)" textAnchor="middle">T</text>
-              <path d="M14,16 L34,16" stroke="var(--text-white)" strokeWidth="2"/>
-              <path d="M18,36 L30,36" stroke="var(--text-white)" strokeWidth="2"/>
-            </svg>
-          </div>
-          {(status || isSpeaking) && (
-            <div className="mini-status">
-              <Status 
-                status={status}
-                isSpeaking={isSpeaking}
-                onStop={handleStop}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className={`popup-container ${status || isSpeaking ? "has-status" : ""}`}
     >
-      <Header onOptionsClick={handleOptionsClick} onToggleMini={toggleMiniMode} />
+      <Header onOptionsClick={handleOptionsClick} />
       <main className={`content ${status || isSpeaking ? "has-status" : ""}`}>
         <div className="input-section">
           <TextInput
