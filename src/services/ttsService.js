@@ -1,7 +1,6 @@
 import {
   analyzeTextLanguage,
   getDefaultVoice,
-  languageConfig,
 } from "../utils/languageConfig.js";
 import browser from "webextension-polyfill";
 
@@ -16,49 +15,166 @@ export class TTSService {
     this.audioContext = null; // Add this to track our initialized context
   }
 
-  // Split text into sentences
-  splitIntoSentences(text) {
-    // First split into sentences
+  // Enhanced text chunking for parallel processing
+  splitIntoChunks(text) {
+    console.log('TTS: Chunking text (' + text.length + ' chars)');
+    
+    // Split into sentences first
     const sentences = text.match(/[^.!?]+[.!?]+[\s\n]*/g) || [text];
+    
     const chunks = [];
+    let currentChunk = '';
 
-    // Process each sentence
-    sentences.forEach((sentence) => {
+    sentences.forEach((sentence, index) => {
       const trimmedSentence = sentence.trim();
       if (trimmedSentence.length === 0) return;
 
-      // If sentence is shorter than max chars, add it directly
-      if (trimmedSentence.length <= this.maxCharsPerRequest) {
-        chunks.push(trimmedSentence);
-        return;
+      // If adding this sentence would exceed the limit, start a new chunk
+      if (currentChunk.length + trimmedSentence.length > this.maxCharsPerRequest && currentChunk.length > 0) {
+        chunks.push({
+          id: chunks.length,
+          text: currentChunk.trim(),
+          order: chunks.length,
+          length: currentChunk.trim().length
+        });
+        currentChunk = trimmedSentence;
+      } else {
+        currentChunk += (currentChunk.length > 0 ? ' ' : '') + trimmedSentence;
       }
 
-      // Split long sentences at natural break points
-      let remainingText = trimmedSentence;
-      while (remainingText.length > this.maxCharsPerRequest) {
-        // Find the last comma, space, or natural break before maxCharsPerRequest
-        let splitIndex = remainingText.lastIndexOf(
-          ",",
-          this.maxCharsPerRequest,
-        );
-        if (splitIndex === -1)
-          splitIndex = remainingText.lastIndexOf(" ", this.maxCharsPerRequest);
-
-        // If no natural break found, force split at maxCharsPerRequest
-        if (splitIndex === -1) splitIndex = this.maxCharsPerRequest;
-
-        // Add the chunk and update remaining text
-        chunks.push(remainingText.substring(0, splitIndex).trim());
-        remainingText = remainingText.substring(splitIndex).trim();
-      }
-
-      // Add any remaining text as the final chunk
-      if (remainingText.length > 0) {
-        chunks.push(remainingText);
+      // If this is the last sentence, add the remaining chunk
+      if (index === sentences.length - 1 && currentChunk.length > 0) {
+        chunks.push({
+          id: chunks.length,
+          text: currentChunk.trim(),
+          order: chunks.length,
+          length: currentChunk.trim().length
+        });
       }
     });
 
+    console.log('TTS: Created ' + chunks.length + ' chunks for parallel processing');
+
     return chunks;
+  }
+
+  // Advanced text segmentation by line breaks and punctuation for sequential processing
+  segmentTextByPunctuation(text) {
+    console.log('TTS: Segmenting text by line breaks and punctuation (' + text.length + ' chars)');
+    
+    const segments = [];
+    let segmentOrder = 0;
+    
+    // Step 1: Split by line breaks first (highest priority)
+    const lines = text.split(/\n+/);
+    console.log('TTS: Found', lines.length, 'lines after splitting by line breaks');
+    
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      let line = lines[lineIndex].trim();
+      
+      // Skip empty lines
+      if (!line) continue;
+      
+      console.log(`TTS: Processing line ${lineIndex + 1}: "${line.substring(0, 50)}..."`);
+      
+      // Step 2: Within each line, split by punctuation marks
+      // Define all punctuation that should create breaks
+      const allBreaks = /([.!?:;,]+)/;
+      
+      // Split the line by punctuation marks
+      const parts = line.split(allBreaks);
+      let currentSegment = '';
+      
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (!part) continue;
+        
+        // If this is a punctuation mark, add it to current segment and finish the segment
+        if (allBreaks.test(part)) {
+          currentSegment += part;
+          
+          // Create segment if we have content
+          if (currentSegment.trim()) {
+            segments.push({
+              id: segmentOrder,
+              text: currentSegment.trim(),
+              order: segmentOrder,
+              length: currentSegment.trim().length,
+              type: this.getPunctuationType(part)
+            });
+            segmentOrder++;
+            console.log(`TTS: Created ${this.getPunctuationType(part)} segment: "${currentSegment.trim().substring(0, 50)}..."`);
+            currentSegment = '';
+          }
+        } else {
+          // This is text content
+          const trimmedPart = part.trim();
+          if (!trimmedPart) continue;
+          
+          // Check if adding this would exceed max chars
+          if (currentSegment.length + trimmedPart.length > this.maxCharsPerRequest && currentSegment.trim()) {
+            // Save current segment first
+            segments.push({
+              id: segmentOrder,
+              text: currentSegment.trim(),
+              order: segmentOrder,
+              length: currentSegment.trim().length,
+              type: 'chunk'
+            });
+            segmentOrder++;
+            currentSegment = trimmedPart;
+          } else {
+            // Add to current segment
+            currentSegment += (currentSegment.trim() ? ' ' : '') + trimmedPart;
+          }
+        }
+      }
+      
+      // Add any remaining segment from this line
+      if (currentSegment.trim()) {
+        segments.push({
+          id: segmentOrder,
+          text: currentSegment.trim(),
+          order: segmentOrder,
+          length: currentSegment.trim().length,
+          type: 'line_end'
+        });
+        segmentOrder++;
+        console.log(`TTS: Created line_end segment: "${currentSegment.trim().substring(0, 50)}..."`);
+      }
+    }
+    
+    // Handle case where entire text has no line breaks or punctuation
+    if (segments.length === 0 && text.trim()) {
+      segments.push({
+        id: 0,
+        text: text.trim(),
+        order: 0,
+        length: text.trim().length,
+        type: 'complete'
+      });
+    }
+    
+    console.log('TTS: Created ' + segments.length + ' segments for sequential processing:');
+    segments.forEach((segment, i) => {
+      console.log(`  ${i + 1}. [${segment.type}] "${segment.text.substring(0, 50)}${segment.text.length > 50 ? '...' : ''}"`);
+    });
+    
+    return segments;
+  }
+
+  // Helper method to determine punctuation type
+  getPunctuationType(punctuation) {
+    if (/[.!?]/.test(punctuation)) return 'sentence';
+    if (/[:]/.test(punctuation)) return 'colon';
+    if (/[;]/.test(punctuation)) return 'semicolon';
+    if (/[,]/.test(punctuation)) return 'comma';
+    return 'punctuation';
+  }
+
+  // Legacy method for backward compatibility
+  splitIntoSentences(text) {
+    return this.splitIntoChunks(text).map(chunk => chunk.text);
   }
 
   createSSML(text, voice = "en-US-AvaMultilingualNeural", rate = 1, pitch = 1) {
@@ -99,32 +215,269 @@ export class TTSService {
         pitchPercent,
       );
 
-      const response = await fetch(this.baseUrl, {
-        method: "POST",
-        headers: {
-          "Ocp-Apim-Subscription-Key": this.azureKey,
-          "Content-Type": "application/ssml+xml",
-          "X-Microsoft-OutputFormat": "audio-16khz-128kbitrate-mono-mp3",
-          "User-Agent": "TTS-Browser-Extension",
-        },
-        body: ssml,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `Speech synthesis failed (${response.status}): ${errorText}`,
-        );
-      }
-
-      return response.blob();
+      return await this.synthesizeWithChunkedTransfer(ssml);
     } catch (error) {
       console.error("Error in synthesizeSingleChunk:", error);
       throw error;
     }
   }
 
-  async synthesizeSpeech(text, userSettings = {}, handlePlayback = false) {
+  async synthesizeWithChunkedTransfer(ssml) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', this.baseUrl, true);
+      
+      // Configure headers for chunked transfer with high-quality MP3 format
+      xhr.setRequestHeader('Ocp-Apim-Subscription-Key', this.azureKey);
+      xhr.setRequestHeader('Content-Type', 'application/ssml+xml');
+      xhr.setRequestHeader('X-Microsoft-OutputFormat', 'audio-24khz-96kbitrate-mono-mp3');
+      xhr.setRequestHeader('User-Agent', 'TTS-Browser-Extension-Chunked-MP3');
+      
+      xhr.responseType = 'arraybuffer';
+      
+      xhr.onload = function() {
+        if (xhr.status === 200) {
+          const blob = new Blob([xhr.response], { type: 'audio/mpeg' });
+          resolve(blob);
+        } else {
+          console.error('TTS request failed:', xhr.status, xhr.statusText);
+          reject(new Error(`Speech synthesis failed (${xhr.status}): ${xhr.statusText}`));
+        }
+      };
+      
+      xhr.onerror = function() {
+        console.error('Network error during TTS request');
+        reject(new Error('Network error during speech synthesis'));
+      };
+      
+      xhr.send(ssml);
+    });
+  }
+
+  async synthesizeWithStreamingPlayback(text, settings = {}, onChunkReady = null) {
+    if (!this.azureKey || !this.azureRegion) {
+      throw new Error("Azure credentials not configured");
+    }
+
+    const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+    const ssml = this.createSSML(
+      text,
+      settings.voice,
+      settings.rate || 1,
+      pitchPercent,
+    );
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', this.baseUrl, true);
+      
+      xhr.setRequestHeader('Ocp-Apim-Subscription-Key', this.azureKey);
+      xhr.setRequestHeader('Content-Type', 'application/ssml+xml');
+      xhr.setRequestHeader('X-Microsoft-OutputFormat', 'audio-16khz-128kbitrate-mono-mp3');
+      xhr.setRequestHeader('User-Agent', 'TTS-Browser-Extension');
+      
+      xhr.responseType = 'arraybuffer';
+      
+      let lastProcessedLength = 0;
+      const audioChunks = [];
+      
+      xhr.onload = function() {
+        if (xhr.status === 200) {
+          const finalBlob = new Blob([xhr.response], { type: 'audio/mpeg' });
+          resolve({ blob: finalBlob, chunks: audioChunks });
+        } else {
+          reject(new Error(`Speech synthesis failed (${xhr.status}): ${xhr.statusText}`));
+        }
+      };
+      
+      xhr.onerror = function() {
+        reject(new Error('Network error during speech synthesis'));
+      };
+      
+      // Process chunks as they arrive
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState >= 3 && xhr.response) {
+          const currentLength = xhr.response.byteLength;
+          
+          if (currentLength > lastProcessedLength) {
+            // Extract new chunk
+            const newChunkData = xhr.response.slice(lastProcessedLength);
+            const chunkBlob = new Blob([newChunkData], { type: 'audio/mpeg' });
+            
+            audioChunks.push(chunkBlob);
+            lastProcessedLength = currentLength;
+            
+            // Notify callback if provided
+            if (onChunkReady && chunkBlob.size > 0) {
+              onChunkReady(chunkBlob, audioChunks.length);
+            }
+            
+            console.log(`Received audio chunk ${audioChunks.length}: ${newChunkData.byteLength} bytes`);
+          }
+        }
+      };
+      
+      xhr.send(ssml);
+    });
+  }
+
+  // Sequential synthesis with ordered segments
+  async synthesizeWithSequentialProcessing(text, userSettings = {}) {
+    try {
+      // Get settings
+      const { settings, voiceSettings } = await browser.storage.local.get([
+        "settings",
+        "voiceSettings",
+      ]);
+
+      // Analyze language and get final settings
+      const analysis = analyzeTextLanguage(text);
+      let languageSettings;
+      
+      if (voiceSettings && voiceSettings[analysis.dominant]) {
+        languageSettings = voiceSettings[analysis.dominant];
+      } else {
+        languageSettings = {
+          voice: getDefaultVoice(analysis.dominant),
+        };
+      }
+
+      const finalSettings = {
+        rate: 1,
+        pitch: 1,
+        ...languageSettings,
+        ...userSettings,
+      };
+
+      // Update credentials if needed
+      if (
+        settings.azureKey !== this.azureKey ||
+        settings.azureRegion !== this.azureRegion
+      ) {
+        this.azureKey = settings.azureKey;
+        this.azureRegion = settings.azureRegion;
+        this.baseUrl = `https://${settings.azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
+      }
+
+      // Segment text by punctuation for sequential processing
+      const textSegments = this.segmentTextByPunctuation(text);
+      console.log('TTS: Processing', textSegments.length, 'segments sequentially');
+
+      // Process segments sequentially (not in parallel)
+      const audioSegments = [];
+      for (let i = 0; i < textSegments.length; i++) {
+        const segment = textSegments[i];
+        console.log(`TTS: Processing segment ${i + 1}/${textSegments.length} (${segment.type}): "${segment.text.substring(0, 50)}..."`);
+        
+        try {
+          const mp3Blob = await this.synthesizeWithChunkedTransfer(
+            this.createSSML(segment.text, finalSettings.voice, finalSettings.rate, ((finalSettings.pitch || 1) - 1) * 100)
+          );
+          
+          audioSegments.push({
+            order: segment.order,
+            blob: mp3Blob,
+            size: mp3Blob.size,
+            text: segment.text,
+            type: segment.type
+          });
+          
+          // Small delay between requests to be respectful to the API
+          if (i < textSegments.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          
+        } catch (error) {
+          console.error(`TTS segment ${i + 1} failed:`, error);
+          throw error;
+        }
+      }
+      
+      console.log('TTS: Sequential synthesis completed');
+      return audioSegments;
+
+    } catch (error) {
+      console.error('TTS sequential synthesis failed:', error);
+      throw error;
+    }
+  }
+
+  // Parallel synthesis with text chunking
+  async synthesizeWithParallelProcessing(text, userSettings = {}) {
+    try {
+      // Get settings
+      const { settings, voiceSettings } = await browser.storage.local.get([
+        "settings",
+        "voiceSettings",
+      ]);
+
+      // Analyze language and get final settings
+      const analysis = analyzeTextLanguage(text);
+      let languageSettings;
+      
+      if (voiceSettings && voiceSettings[analysis.dominant]) {
+        languageSettings = voiceSettings[analysis.dominant];
+      } else {
+        languageSettings = {
+          voice: getDefaultVoice(analysis.dominant),
+        };
+      }
+
+      const finalSettings = {
+        rate: 1,
+        pitch: 1,
+        ...languageSettings,
+        ...userSettings,
+      };
+
+      // Update credentials if needed
+      if (
+        settings.azureKey !== this.azureKey ||
+        settings.azureRegion !== this.azureRegion
+      ) {
+        this.azureKey = settings.azureKey;
+        this.azureRegion = settings.azureRegion;
+        this.baseUrl = `https://${settings.azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
+      }
+
+      // Split text into chunks for parallel processing
+      const textChunks = this.splitIntoChunks(text);
+      console.log('TTS: Processing', textChunks.length, 'chunks in parallel');
+
+      // Process all chunks in parallel
+      const synthesisTasks = textChunks.map(async (chunk, index) => {
+        try {
+          const mp3Blob = await this.synthesizeWithChunkedTransfer(
+            this.createSSML(chunk.text, finalSettings.voice, finalSettings.rate, ((finalSettings.pitch || 1) - 1) * 100)
+          );
+          return {
+            order: chunk.order,
+            blob: mp3Blob,
+            size: mp3Blob.size
+          };
+        } catch (error) {
+          console.error(`TTS chunk ${index + 1} failed:`, error);
+          throw error;
+        }
+      });
+
+      // Wait for all parallel synthesis to complete
+      const results = await Promise.all(synthesisTasks);
+      
+      console.log('TTS: Parallel synthesis completed');
+
+      // Sort results by original order
+      results.sort((a, b) => a.order - b.order);
+      
+      return results;
+
+    } catch (error) {
+      console.error('TTS parallel synthesis failed:', error);
+      throw error;
+    }
+  }
+
+  async synthesizeSpeech(text, userSettings = {}) {
     try {
       // Get both API settings and voice settings
       const { settings, voiceSettings } = await browser.storage.local.get([
@@ -213,7 +566,7 @@ export class TTSService {
       // Try to resume the context
       try {
         await context.resume();
-      } catch (error) {
+      } catch {
         // If we can't resume, wait for user interaction
         await new Promise((resolve) => {
           const handleInteraction = async () => {
@@ -242,41 +595,43 @@ export class TTSService {
   }
 
   async playAudioChunk(audioBlob, rate = 1, existingContext = null) {
-    return new Promise(async (resolve, reject) => {
-      try {
-        // Use existing context or get the initialized one
-        const context = existingContext || (await this.initAudioContext());
+    return new Promise((resolve, reject) => {
+      const playChunk = async () => {
+        try {
+          // Use existing context or get the initialized one
+          const context = existingContext || (await this.initAudioContext());
 
-        // Ensure context is running
-        if (context.state !== "running") {
-          await context.resume();
-        }
-
-        const source = context.createBufferSource();
-        this.currentAudio = { context, source };
-
-        const arrayBuffer = await audioBlob.arrayBuffer();
-        const audioBuffer = await context.decodeAudioData(arrayBuffer);
-
-        source.buffer = audioBuffer;
-        source.playbackRate.value = rate;
-        source.connect(context.destination);
-
-        // Add a longer scheduling delay
-        const startTime = context.currentTime + 0.8;
-
-        source.onended = () => {
-          if (!existingContext) {
-            source.disconnect();
+          // Ensure context is running
+          if (context.state !== "running") {
+            await context.resume();
           }
-          resolve();
-        };
 
-        source.start(startTime);
-      } catch (error) {
-        console.error("Playback error:", error);
-        reject(error);
-      }
+          const source = context.createBufferSource();
+          this.currentAudio = { context, source };
+
+          const arrayBuffer = await audioBlob.arrayBuffer();
+          const audioBuffer = await context.decodeAudioData(arrayBuffer);
+
+          source.buffer = audioBuffer;
+          source.playbackRate.value = rate;
+          source.connect(context.destination);
+
+          // Immediate start for sequential playback - no delay needed
+          const startTime = context.currentTime + 0.1; // Minimal delay for stability
+
+          source.onended = () => {
+            source.disconnect();
+            resolve();
+          };
+
+          source.start(startTime);
+        } catch (error) {
+          console.error("Playback error:", error);
+          reject(error);
+        }
+      };
+      
+      playChunk();
     });
   }
 
@@ -394,5 +749,295 @@ export class TTSService {
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
     return this.audioContext;
+  }
+
+  // MP3 audio concatenation via AudioBuffer
+  async concatenateMP3Chunks(mp3Chunks) {
+    const audioContext = await this.initAudioContext();
+    const audioBuffers = [];
+    let totalSamples = 0;
+    
+    // Decode all MP3 chunks to AudioBuffers
+    for (let i = 0; i < mp3Chunks.length; i++) {
+      const chunk = mp3Chunks[i];
+      
+      try {
+        const arrayBuffer = await chunk.blob.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        audioBuffers.push(audioBuffer);
+        totalSamples += audioBuffer.length;
+      } catch (error) {
+        console.error(`Failed to decode chunk ${i + 1}:`, error);
+        throw error;
+      }
+    }
+    
+    // Create concatenated AudioBuffer
+    const sampleRate = audioBuffers[0].sampleRate;
+    const channels = audioBuffers[0].numberOfChannels;
+    const concatenatedBuffer = audioContext.createBuffer(channels, totalSamples, sampleRate);
+    
+    // Copy all audio data
+    let offset = 0;
+    for (let i = 0; i < audioBuffers.length; i++) {
+      const buffer = audioBuffers[i];
+      for (let channel = 0; channel < channels; channel++) {
+        const sourceData = buffer.getChannelData(channel);
+        const targetData = concatenatedBuffer.getChannelData(channel);
+        targetData.set(sourceData, offset);
+      }
+      offset += buffer.length;
+    }
+    
+    console.log('TTS: Concatenated audio (' + Math.round(concatenatedBuffer.duration * 100) / 100 + 's)');
+    return concatenatedBuffer;
+  }
+
+  // Play AudioBuffer directly
+  async playAudioBuffer(audioBuffer, rate = 1) {
+    try {
+      const audioContext = await this.initAudioContext();
+      
+      return new Promise((resolve, reject) => {
+        try {
+          const source = audioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.playbackRate.value = rate;
+          source.connect(audioContext.destination);
+          
+          this.currentAudio = { context: audioContext, source };
+          
+          source.onended = () => {
+            source.disconnect();
+            resolve();
+          };
+          
+          source.start();
+          
+        } catch (error) {
+          console.error('AudioBuffer playback error:', error);
+          reject(error);
+        }
+      });
+      
+    } catch (error) {
+      console.error('AudioBuffer playback failed:', error);
+      throw error;
+    }
+  }
+
+  async playTextWithChunkedStreaming(text, userSettings = {}) {
+    try {
+      // Get settings
+      const { settings, voiceSettings } = await browser.storage.local.get([
+        "settings",
+        "voiceSettings",
+      ]);
+
+      const analysis = analyzeTextLanguage(text);
+      let languageSettings;
+      
+      if (voiceSettings && voiceSettings[analysis.dominant]) {
+        languageSettings = voiceSettings[analysis.dominant];
+      } else {
+        languageSettings = {
+          voice: getDefaultVoice(analysis.dominant),
+        };
+      }
+
+      const finalSettings = {
+        rate: 1,
+        pitch: 1,
+        ...languageSettings,
+        ...userSettings,
+      };
+
+      // Update credentials if needed
+      if (
+        settings.azureKey !== this.azureKey ||
+        settings.azureRegion !== this.azureRegion
+      ) {
+        this.azureKey = settings.azureKey;
+        this.azureRegion = settings.azureRegion;
+        this.baseUrl = `https://${settings.azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
+      }
+
+      // Stop any currently playing audio
+      if (this.currentAudio) {
+        await this.stopAudio();
+      }
+
+      // Initialize audio context
+      const audioContext = await this.initAudioContext();
+      let isFirstChunk = true;
+
+      // Use streaming synthesis with chunk callback
+      const result = await this.synthesizeWithStreamingPlayback(
+        text,
+        finalSettings,
+        (_chunkBlob, _chunkIndex) => {
+          // Chunk received callback - could implement progressive playback here
+          if (isFirstChunk) {
+            isFirstChunk = false;
+          }
+        }
+      );
+
+      // Play the complete audio
+      return await this.playAudioChunk(result.blob, finalSettings.rate, audioContext);
+      
+    } catch (error) {
+      console.error('Error in chunked streaming playback:', error);
+      throw error;
+    }
+  }
+
+  // Ordered audio playback system for sequential segments
+  async playAudioSegmentsInOrder(audioSegments, playbackRate = 1) {
+    try {
+      // Initialize audio context once for all segments
+      const audioContext = await this.initAudioContext();
+      
+      // Ensure context is running
+      if (audioContext.state !== "running") {
+        await audioContext.resume();
+      }
+      
+      console.log('TTS: Playing', audioSegments.length, 'audio segments in order');
+      
+      // Sort segments by order to ensure correct playback sequence
+      const sortedSegments = [...audioSegments].sort((a, b) => a.order - b.order);
+      
+      for (let i = 0; i < sortedSegments.length; i++) {
+        const segment = sortedSegments[i];
+        console.log(`TTS: Playing segment ${i + 1}/${sortedSegments.length} (${segment.type}): "${segment.text.substring(0, 50)}..."`);
+        
+        try {
+          // Play each segment and wait for it to complete before playing the next
+          await this.playAudioChunk(segment.blob, playbackRate, audioContext);
+          
+          // Small gap between segments for natural flow
+          if (i < sortedSegments.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 200)); // Increased gap for better separation
+          }
+          
+        } catch (error) {
+          console.error(`Error playing segment ${i + 1}:`, error);
+          // Continue with next segment even if one fails
+        }
+      }
+      
+      console.log('TTS: Finished playing all segments in order');
+      
+    } catch (error) {
+      console.error('Error in ordered audio playback:', error);
+      throw error;
+    }
+  }
+
+  // Simple method: Just return audio segments for manual playback
+  async getSequentialAudioSegments(text, userSettings = {}) {
+    try {
+      console.log('TTS: Getting sequential audio segments');
+      
+      // Sequential synthesis (returns ordered audio segments)
+      const audioSegments = await this.synthesizeWithSequentialProcessing(text, userSettings);
+      
+      console.log('TTS: Sequential synthesis completed, returning', audioSegments.length, 'segments');
+      return audioSegments;
+      
+    } catch (error) {
+      console.error('Sequential TTS synthesis failed:', error);
+      throw error;
+    }
+  }
+
+  // Main method: Sequential processing + ordered playback
+  async playTextWithSequentialProcessing(text, userSettings = {}) {
+    try {
+      // Stop any currently playing audio
+      if (this.currentAudio) {
+        await this.stopAudio();
+      }
+
+      console.log('TTS: Starting sequential processing pipeline');
+      
+      // Step 1: Sequential synthesis (returns ordered audio segments)
+      const audioSegments = await this.synthesizeWithSequentialProcessing(text, userSettings);
+      
+      // Step 2: Play segments in their original order
+      const finalSettings = {
+        rate: 1,
+        ...userSettings,
+      };
+      
+      await this.playAudioSegmentsInOrder(audioSegments, finalSettings.rate);
+      
+      console.log('TTS: Sequential processing pipeline completed');
+      
+    } catch (error) {
+      console.error('Sequential TTS pipeline failed:', error);
+      throw error;
+    }
+  }
+
+  // Alternative: Sequential processing with concatenated playback
+  async playTextWithSequentialConcatenation(text, userSettings = {}) {
+    try {
+      // Stop any currently playing audio
+      if (this.currentAudio) {
+        await this.stopAudio();
+      }
+
+      console.log('TTS: Starting sequential processing with concatenation');
+      
+      // Step 1: Sequential synthesis (returns ordered audio segments)
+      const audioSegments = await this.synthesizeWithSequentialProcessing(text, userSettings);
+      
+      // Step 2: Concatenate all segments into single audio buffer
+      const concatenatedAudioBuffer = await this.concatenateMP3Chunks(audioSegments);
+      
+      // Step 3: Play concatenated audio
+      const finalSettings = {
+        rate: 1,
+        ...userSettings,
+      };
+      
+      await this.playAudioBuffer(concatenatedAudioBuffer, finalSettings.rate);
+      
+      console.log('TTS: Sequential concatenation pipeline completed');
+      
+    } catch (error) {
+      console.error('Sequential concatenation TTS pipeline failed:', error);
+      throw error;
+    }
+  }
+
+  // Main method: Parallel processing + MP3 concatenation + playback
+  async playTextWithParallelProcessing(text, userSettings = {}) {
+    try {
+      // Stop any currently playing audio
+      if (this.currentAudio) {
+        await this.stopAudio();
+      }
+
+      // Step 1: Parallel synthesis (returns MP3 chunks)
+      const mp3Chunks = await this.synthesizeWithParallelProcessing(text, userSettings);
+      
+      // Step 2: Concatenate MP3 chunks into single AudioBuffer
+      const concatenatedAudioBuffer = await this.concatenateMP3Chunks(mp3Chunks);
+      
+      // Step 3: Play concatenated audio
+      const finalSettings = {
+        rate: 1,
+        ...userSettings,
+      };
+      
+      await this.playAudioBuffer(concatenatedAudioBuffer, finalSettings.rate);
+      
+    } catch (error) {
+      console.error('Parallel TTS pipeline failed:', error);
+      throw error;
+    }
   }
 }

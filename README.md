@@ -28,10 +28,10 @@ A powerful yet simple browser extension that converts text to speech using Azure
 
 ### 1. Get Azure Speech Service Credentials
 
-Simple TTS uses Microsoft Azure's premium speech synthesis service for the highest quality voices.
+Simple TTS uses Microsoft Azure's speech synthesis service for the highest quality voices.
 
-1. **Sign up for Azure**: Create a free [Azure account](https://azure.microsoft.com/free/) (includes $200 credit)
-2. **Create Speech Resource**: In the Azure portal, create a new Speech Service resource
+1. **Sign up for Azure**: Create a free [Azure account](https://azure.microsoft.com)
+2. **Create Speech Resource**: In the Azure portal, create a new `Speech Service` resource
 3. **Get Credentials**: Copy your API key and region from the resource overview
 4. **Preview Voices**: Try different voices at [Azure Voice Gallery](https://speech.microsoft.com/portal/voicegallery)
 
@@ -65,6 +65,9 @@ Simple TTS uses Microsoft Azure's premium speech synthesis service for the highe
 ### Prerequisites
 - **Node.js** v18+ ([Download](https://nodejs.org/))
 - **npm** v9+ (comes with Node.js)
+
+For Azure TTS of Speech Service documentation refer these:
+- [Text to speech REST API](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech?tabs=streaming)
 
 ### Quick Development Setup
 

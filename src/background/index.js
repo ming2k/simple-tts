@@ -91,20 +91,23 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         settings.azureKey,
         settings.azureRegion,
       );
-      const audioBlobs = await ttsService.synthesizeSpeech(info.selectionText, {
+      
+      // Stop any currently playing audio first
+      await browser.tabs.sendMessage(tab.id, { type: "STOP_AUDIO" });
+      
+      // Use sequential processing with concatenated playback for context menu
+      const audioSegments = await ttsService.synthesizeWithSequentialProcessing(info.selectionText, {
         voice: settings.voice,
         rate: settings.rate,
         pitch: settings.pitch,
       });
 
-      if (!audioBlobs || !audioBlobs.length) {
+      if (!audioSegments || !audioSegments.length) {
         throw new Error("Speech synthesis failed to generate audio");
       }
 
-      // Stop any currently playing audio and hide the window
-      await browser.tabs.sendMessage(tab.id, { type: "STOP_AUDIO" });
-
-      // Combine all audio blobs into one
+      // Concatenate all segments into one blob for web playback
+      const audioBlobs = audioSegments.map(segment => segment.blob);
       const combinedBlob = new Blob(audioBlobs, { type: "audio/mp3" });
       const audioUrl = URL.createObjectURL(combinedBlob);
 

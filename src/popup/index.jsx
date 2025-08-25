@@ -61,33 +61,17 @@ function Popup() {
       }
 
       const tts = new TTSService(settings.azureKey, settings.azureRegion);
-      const audioBlobs = await tts.synthesizeSpeech(text, {
+      
+      // Use sequential processing with line break support
+      await tts.playTextWithSequentialProcessing(text, {
         voice: settings.voice,
         rate: settings.rate,
         pitch: settings.pitch,
       });
-
-      if (!audioBlobs || !audioBlobs.length) {
-        throw new Error("Failed to generate speech");
-      }
-
-      // Combine all blobs into one
-      const combinedBlob = new Blob(audioBlobs, { type: "audio/mp3" });
-
-      // Create audio player
-      const player = tts.createAudioPlayer(combinedBlob);
-      setAudioPlayer(player);
-
-      // Play the audio
-      await player.play();
+      
       setStatus("");
-
-      // Add ended event listener
-      player.onEnded = () => {
-        setIsSpeaking(false);
-        setStatus("");
-        setAudioPlayer(null);
-      };
+      setIsSpeaking(false);
+      setAudioPlayer(null);
     } catch (error) {
       console.error("TTS error:", error);
       setStatus(`Error: ${error.message}`);
