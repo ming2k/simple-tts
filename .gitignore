@@ -10,3 +10,8 @@ dev/
 *.zip
 *.xpi
 *.crx
+
+# Claude Code files
+CLAUDE.md
+.claude/
+*.claude

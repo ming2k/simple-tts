@@ -24,21 +24,21 @@ const Button = styled.button`
 `;
 
 const BackButton = styled(Button)`
-  background: #f3f4f6;
-  color: #4b5563;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
   visibility: ${props => props.$show ? 'visible' : 'hidden'};
 
   &:hover:not(:disabled) {
-    background: #e5e7eb;
+    background: var(--bg-hover);
   }
 `;
 
 const NextButton = styled(Button)`
-  background: #2563eb;
-  color: white;
+  background: var(--text-accent);
+  color: var(--text-white);
 
   &:hover:not(:disabled) {
-    background: #1d4ed8;
+    background: var(--bg-accent-hover);
   }
 `;
 

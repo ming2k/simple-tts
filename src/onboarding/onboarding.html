@@ -1,33 +1,73 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Simple TTS - Setup</title>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #f8f9fa;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      :root {
+        /* Light theme colors */
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8f9fa;
+        --bg-tertiary: #f5f5f5;
+        --bg-hover: #e5e7eb;
+        --bg-accent-hover: #1976d2;
+        --text-primary: #000000;
+        --text-secondary: #4b5563;
+        --text-tertiary: #9ca3af;
+        --text-accent: #2563eb;
+        --text-white: #ffffff;
+        --text-error: #dc2626;
+        --border-primary: #d1d5db;
+        --shadow-primary: rgba(0, 0, 0, 0.1);
+        --shadow-focus: rgba(37, 99, 235, 0.1);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          /* Dark theme colors */
+          --bg-primary: #1f2937;
+          --bg-secondary: #111827;
+          --bg-tertiary: #374151;
+          --bg-hover: #4b5563;
+          --bg-accent-hover: #1565c0;
+          --text-primary: #ffffff;
+          --text-secondary: #d1d5db;
+          --text-tertiary: #9ca3af;
+          --text-accent: #60a5fa;
+          --text-white: #ffffff;
+          --text-error: #f87171;
+          --border-primary: #4b5563;
+          --shadow-primary: rgba(0, 0, 0, 0.3);
+          --shadow-focus: rgba(96, 165, 250, 0.2);
         }
-        #root {
-            width: 100%;
-            max-width: 480px;
-            margin: 20px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: var(--bg-secondary);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        color: var(--text-primary);
+      }
+      #root {
+        width: 100%;
+        max-width: 480px;
+        margin: 20px;
+        background: var(--bg-primary);
+        border-radius: 12px;
+        box-shadow: 0 4px 6px var(--shadow-primary);
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div id="root"></div>
     <script src="onboarding.js"></script>
-</body>
+  </body>
 </html>

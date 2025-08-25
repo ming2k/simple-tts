@@ -1,9 +1,66 @@
+:root {
+  /* Light theme colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9f9f9;
+  --bg-tertiary: #f5f5f5;
+  --bg-hover: #f8f9fa;
+  --bg-active: #f0f0f0;
+  --bg-accent: #2196f3;
+  --bg-accent-hover: #1976d2;
+  --bg-success: #4caf50;
+  --bg-error: #d32f2f;
+  --text-primary: #333;
+  --text-secondary: #444;
+  --text-tertiary: #666;
+  --text-muted: #4a5568;
+  --text-white: #ffffff;
+  --text-accent: #0060df;
+  --text-success: #008000;
+  --border-primary: #ddd;
+  --border-secondary: #e0e0e0;
+  --border-accent: #2196f3;
+  --border-light: #eee;
+  --shadow-primary: rgba(0, 0, 0, 0.1);
+  --shadow-accent: rgba(33, 150, 243, 0.1);
+  --shadow-focus: rgba(33, 150, 243, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark theme colors */
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #2d2d2d;
+    --bg-tertiary: #1f1f1f;
+    --bg-hover: #3a3a3a;
+    --bg-active: #404040;
+    --bg-accent: #1976d2;
+    --bg-accent-hover: #1565c0;
+    --bg-success: #388e3c;
+    --bg-error: #d32f2f;
+    --text-primary: #ffffff;
+    --text-secondary: #e0e0e0;
+    --text-tertiary: #b0b0b0;
+    --text-muted: #a0a0a0;
+    --text-white: #ffffff;
+    --text-accent: #64b5f6;
+    --text-success: #4caf50;
+    --border-primary: #404040;
+    --border-secondary: #505050;
+    --border-accent: #1976d2;
+    --border-light: #333;
+    --shadow-primary: rgba(0, 0, 0, 0.3);
+    --shadow-accent: rgba(25, 118, 210, 0.3);
+    --shadow-focus: rgba(25, 118, 210, 0.4);
+  }
+}
+
 body {
   font-family: Arial, sans-serif;
   line-height: 1.5;
   margin: 0;
   padding: 20px;
-  background-color: #f5f5f5;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .container {
@@ -16,17 +73,17 @@ body {
 .section {
   margin-bottom: 24px;
   padding: 16px;
-  background: #f9f9f9;
+  background: var(--bg-secondary);
   border-radius: 4px;
 }
 
 h1 {
-  color: #0060df;
+  color: var(--text-accent);
   margin-bottom: 24px;
 }
 
 h2 {
-  color: #444;
+  color: var(--text-secondary);
   font-size: 18px;
   margin-bottom: 16px;
 }
@@ -38,15 +95,17 @@ h2 {
 label {
   display: block;
   margin-bottom: 8px;
-  color: #666;
+  color: var(--text-tertiary);
 }
 
 input {
   width: 100%;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
   font-size: 14px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .button-group {
@@ -57,8 +116,8 @@ input {
 
 button {
   padding: 8px 16px;
-  background: #0060df;
-  color: white;
+  background: var(--text-accent);
+  color: var(--text-white);
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -66,26 +125,29 @@ button {
 }
 
 button:hover {
-  background: #0250bc;
+  background: var(--bg-accent-hover);
 }
 
 #status {
-  color: #008000;
+  color: var(--text-success);
 }
 
 .options-container {
   max-width: 900px;
   margin: 0 auto;
   padding: 20px;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
 }
 
 .settings-section {
-  background: #fff;
+  background: var(--bg-primary);
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px var(--shadow-primary);
 }
 
 .setting-item {
@@ -103,16 +165,18 @@ button:hover {
   width: 100%;
   max-width: 400px;
   padding: 8px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
   font-size: 14px;
   margin-bottom: 16px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .voice-select:focus {
-  border-color: #2196F3;
+  border-color: var(--border-accent);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+  box-shadow: 0 0 0 2px var(--shadow-accent);
 }
 
 .voice-select option {
@@ -141,16 +205,18 @@ button:hover {
 .azure-input {
   width: 100%;
   padding: 8px 40px 8px 8px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
   font-size: 14px;
   transition: border-color 0.2s;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .azure-input:focus {
-  border-color: #2196F3;
+  border-color: var(--border-accent);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+  box-shadow: 0 0 0 2px var(--shadow-accent);
 }
 
 .toggle-visibility {
@@ -165,14 +231,16 @@ button:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: var(--text-tertiary);
   border-radius: 4px;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
 .toggle-visibility:hover {
-  background: #f0f0f0;
-  color: #333;
+  background: var(--bg-active);
+  color: var(--text-primary);
 }
 
 .toggle-visibility:focus {
@@ -181,8 +249,8 @@ button:hover {
 }
 
 .save-button {
-  background: #2196F3;
-  color: white;
+  background: var(--bg-accent);
+  color: var(--text-white);
   border: none;
   padding: 10px 20px;
   border-radius: 4px;
@@ -195,17 +263,17 @@ button:hover {
 }
 
 .save-button:hover {
-  background: #1976D2;
+  background: var(--bg-accent-hover);
 }
 
 .save-button.saving {
-  background: #4CAF50;
+  background: var(--bg-success);
   pointer-events: none;
-  color: white;
+  color: var(--text-white);
 }
 
 .save-button.saving::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -235,18 +303,18 @@ input[type="checkbox"] {
 }
 
 h1 {
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 24px;
 }
 
 h2 {
-  color: #444;
+  color: var(--text-secondary);
   margin-bottom: 16px;
   font-size: 1.2em;
 }
 
 a {
-  color: #0060df;
+  color: var(--text-accent);
   text-decoration: none;
 }
 
@@ -276,14 +344,16 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: var(--text-tertiary);
   border-radius: 4px;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
 .toggle-visibility:hover {
-  background: #f0f0f0;
-  color: #333;
+  background: var(--bg-active);
+  color: var(--text-primary);
 }
 
 .toggle-visibility:focus {
@@ -295,16 +365,18 @@ a:hover {
 .azure-input {
   width: 100%;
   padding: 8px 40px 8px 8px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
   font-size: 14px;
   transition: border-color 0.2s;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .azure-input:focus {
-  border-color: #2196F3;
+  border-color: var(--border-accent);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+  box-shadow: 0 0 0 2px var(--shadow-accent);
 }
 
 .settings-grid {
@@ -323,7 +395,7 @@ a:hover {
   .settings-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .options-container {
     max-width: 600px;
   }
@@ -340,7 +412,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   padding: 8px;
   border-radius: 8px;
 }
@@ -349,26 +421,26 @@ a:hover {
   display: block;
   padding: 12px 16px;
   text-align: left;
-  background: #ffffff;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  color: #4b5563;
+  color: var(--text-muted);
   text-decoration: none;
   transition: all 0.2s ease;
 }
 
 .tab-button:hover {
-  background: #f8f9fa;
-  border-color: #2563eb;
-  color: #2563eb;
+  background: var(--bg-hover);
+  border-color: var(--border-accent);
+  color: var(--text-accent);
 }
 
 .tab-button.active {
-  background: #2563eb;
-  color: white;
-  border-color: #2563eb;
+  background: var(--text-accent);
+  color: var(--text-white);
+  border-color: var(--text-accent);
 }
 
 /* Responsive design */
@@ -396,7 +468,7 @@ a:hover {
 .button-container {
   margin-top: 32px;
   padding-top: 16px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border-light);
 }
 
 .region-input {
@@ -408,7 +480,7 @@ a:hover {
 }
 
 .error-message {
-  color: #d32f2f;
+  color: var(--bg-error);
   font-size: 14px;
   margin-top: 4px;
 }
@@ -421,7 +493,7 @@ a:hover {
 /* Optional: Add groups to the voice select */
 .voice-select optgroup {
   font-weight: 600;
-  color: #666;
+  color: var(--text-tertiary);
 }
 
 .save-success {
@@ -456,14 +528,14 @@ a:hover {
 .guide-step {
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background: #f8f9fa;
+  background: var(--bg-hover);
   border-radius: 8px;
-  border-left: 4px solid #4299e1;
+  border-left: 4px solid var(--text-accent);
 }
 
 .guide-step h3 {
   margin-top: 0;
-  color: #2c5282;
+  color: var(--text-accent);
 }
 
 .guide-step ul {
@@ -520,7 +592,7 @@ a:hover {
 }
 
 .project-links a {
-  color: #4a5568;
+  color: var(--text-muted);
   text-decoration: none;
   padding: 0.5rem 1rem;
   border-radius: 6px;
@@ -528,17 +600,17 @@ a:hover {
 }
 
 .project-links a:hover {
-  background-color: #edf2f7;
+  background-color: var(--bg-hover);
 }
 
 .chinese-payment {
   margin-top: 2rem;
   padding-top: 2rem;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border-light);
 }
 
 .chinese-payment h3 {
-  color: #2d3748;
+  color: var(--text-primary);
   margin-bottom: 1.5rem;
 }
 
@@ -560,7 +632,7 @@ a:hover {
   width: 200px;
   height: 200px;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px var(--shadow-primary);
   transition: transform 0.2s ease;
 }
 
@@ -570,7 +642,7 @@ a:hover {
 
 .qr-code-container span {
   font-size: 1rem;
-  color: #4a5568;
+  color: var(--text-muted);
 }
 
 /* Responsive design for QR codes */
@@ -585,4 +657,3 @@ a:hover {
     height: 180px;
   }
 }
-  

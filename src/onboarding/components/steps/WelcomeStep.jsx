@@ -10,22 +10,22 @@ const stepContent = {
   }
 };
 
-const InfoBox = ({ icon, children, color = '#1976d2' }) => (
+const InfoBox = ({ icon, children, color = 'var(--text-accent)' }) => (
   <div style={{
-    backgroundColor: 'white',
+    backgroundColor: 'var(--bg-secondary)',
     borderRadius: '4px',
     padding: '12px 16px',
     marginTop: '0.75rem',
     fontSize: '0.9em',
-    color: 'rgba(0, 0, 0, 0.87)',
+    color: 'var(--text-secondary)',
     display: 'flex',
     alignItems: 'flex-start',
     gap: '12px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    boxShadow: '0 2px 4px var(--shadow-primary)',
     transition: 'box-shadow 0.2s ease-in-out',
-    border: '1px solid rgba(0, 0, 0, 0.12)',
+    border: '1px solid var(--border-primary)',
     ':hover': {
-      boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+      boxShadow: '0 4px 8px var(--shadow-primary)'
     }
   }}>
     <span role="img" aria-label="icon" style={{ 
@@ -47,23 +47,23 @@ export function WelcomeStep() {
     <>
       <Title>{stepContent.title}</Title>
       <Description>{stepContent.content}</Description>
-      <InfoBox icon="💻" color="#2196F3">
+      <InfoBox icon="💻" color="var(--text-accent)">
         {stepContent.statement.openSource}
         <a 
           href="https://github.com/ming2k/simple-tts" 
           target="_blank"
           rel="noopener noreferrer"
           style={{ 
-            color: '#2196F3', 
+            color: 'var(--text-accent)', 
             textDecoration: 'none',
-            borderBottom: '1px solid #2196F3',
+            borderBottom: '1px solid var(--text-accent)',
             paddingBottom: '1px'
           }}
         >
           GitHub
         </a>
       </InfoBox>
-      <InfoBox icon="🔒" color="#4CAF50">
+      <InfoBox icon="🔒" color="var(--text-accent)">
         {stepContent.statement.privacy}
       </InfoBox>
     </>

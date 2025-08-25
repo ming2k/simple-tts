@@ -10,25 +10,25 @@ const SuccessIcon = styled.div`
   margin: 2rem auto;
   width: 72px;
   height: 72px;
-  background: #ecfdf5;
+  background: var(--bg-secondary);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #059669;
+  color: var(--text-accent);
   font-size: 36px;
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.1);
+  box-shadow: 0 4px 12px var(--shadow-primary);
 `;
 
 const FeatureList = styled.div`
   text-align: left;
-  background: #f8fafc;
+  background: var(--bg-secondary);
   padding: 1.25rem;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-primary);
 
   h3 {
-    color: #0f172a;
+    color: var(--text-primary);
     font-size: 1rem;
     margin: 0 0 0.75rem 0;
   }
@@ -43,14 +43,14 @@ const FeatureList = styled.div`
     margin: 0.75rem 0;
     padding-left: 1.75rem;
     position: relative;
-    color: #475569;
+    color: var(--text-secondary);
     line-height: 1.4;
 
     &:before {
       content: "✓";
       position: absolute;
       left: 0;
-      color: #059669;
+      color: var(--text-accent);
       font-weight: bold;
     }
 
@@ -65,7 +65,7 @@ const FeatureList = styled.div`
 `;
 
 const Highlight = styled.span`
-  color: #0f172a;
+  color: var(--text-primary);
   font-weight: 500;
 `;
 

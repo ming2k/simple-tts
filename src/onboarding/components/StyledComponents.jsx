@@ -6,18 +6,18 @@ export const Container = styled.div`
 
 export const Title = styled.h1`
   font-size: 1.5rem;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin-bottom: 1rem;
 `;
 
 export const Description = styled.p`
-  color: #4b5563;
+  color: var(--text-secondary);
   line-height: 1.6;
   margin-bottom: 1.5rem;
 `;
 
 export const ErrorMessage = styled.div`
-  color: #dc2626;
+  color: var(--text-error);
   font-size: 0.875rem;
   margin-top: 0.5rem;
 `;

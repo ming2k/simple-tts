@@ -12,7 +12,7 @@ const InputGroup = styled.div`
   label {
     display: block;
     margin-bottom: 0.5rem;
-    color: #4b5563;
+    color: var(--text-secondary);
     font-weight: 500;
   }
 `;
@@ -28,17 +28,23 @@ const StyledInput = styled.input`
   width: 100%;
   height: 44px;
   padding: 0 40px 0 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
   font-size: 1rem;
   transition: all 0.2s;
   font-family: ${props => props.$isKey ? 'monospace' : 'inherit'};
   box-sizing: border-box;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 
   &:focus {
     outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    border-color: var(--text-accent);
+    box-shadow: 0 0 0 3px var(--shadow-focus);
+  }
+
+  &::placeholder {
+    color: var(--text-tertiary);
   }
 `;
 
@@ -53,19 +59,19 @@ const EyeIcon = styled.button`
   background: none;
   border: none;
   cursor: pointer;
-  color: #6b7280;
+  color: var(--text-tertiary);
   border-radius: 4px;
   transition: all 0.2s ease;
   padding: 0;
 
   &:hover {
-    color: #374151;
-    background-color: rgba(0, 0, 0, 0.04);
+    color: var(--text-primary);
+    background-color: var(--bg-hover);
   }
 
   &:focus {
     outline: none;
-    background-color: rgba(0, 0, 0, 0.04);
+    background-color: var(--bg-hover);
   }
 
   svg {
@@ -78,14 +84,14 @@ const EyeIcon = styled.button`
 const HelpText = styled.div`
   margin-top: 1rem;
   padding: 1rem;
-  background: #f0f9ff;
+  background: var(--bg-secondary);
   border-radius: 6px;
-  color: #4b5563;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   line-height: 1.5;
 
   a {
-    color: #2563eb;
+    color: var(--text-accent);
     text-decoration: none;
     font-weight: 500;
     

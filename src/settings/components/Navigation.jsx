@@ -5,7 +5,7 @@ const Nav = styled.nav`
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   padding: 8px;
   border-radius: 8px;
 
@@ -22,19 +22,19 @@ const TabButton = styled.a`
   display: block;
   padding: 12px 16px;
   text-align: left;
-  background: ${props => props.$active ? '#2563eb' : '#ffffff'};
-  border: 1px solid ${props => props.$active ? '#2563eb' : '#e0e0e0'};
+  background: ${props => props.$active ? 'var(--text-accent)' : 'var(--bg-primary)'};
+  border: 1px solid ${props => props.$active ? 'var(--text-accent)' : 'var(--border-secondary)'};
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  color: ${props => props.$active ? 'white' : '#4b5563'};
+  color: ${props => props.$active ? 'var(--text-white)' : 'var(--text-muted)'};
   text-decoration: none;
   transition: all 0.2s ease;
 
   &:hover {
-    background: ${props => props.$active ? '#2563eb' : '#f8f9fa'};
-    border-color: #2563eb;
-    color: ${props => props.$active ? 'white' : '#2563eb'};
+    background: ${props => props.$active ? 'var(--text-accent)' : 'var(--bg-hover)'};
+    border-color: var(--border-accent);
+    color: ${props => props.$active ? 'var(--text-white)' : 'var(--text-accent)'};
   }
 
   @media (max-width: 768px) {

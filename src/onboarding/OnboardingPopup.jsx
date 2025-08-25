@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import styled from 'styled-components';
-import { ProgressBar } from '../StyledComponents';
-import { RenderSteps } from './steps/RenderSteps';
-import { NavigationButtons } from './NavigationButtons';
-import { TTSService } from '../../services/TTSService';
+import React, { useState } from "react";
+import styled from "styled-components";
+import { ProgressBar } from "../StyledComponents";
+import { RenderSteps } from "./steps/RenderSteps";
+import { NavigationButtons } from "./NavigationButtons";
+import { TTSService } from "../../services/TTSService";
 
 const Container = styled.div`
   width: 100%;
@@ -16,16 +16,16 @@ const Container = styled.div`
 
 export function OnboardingPopup() {
   const [currentStep, setCurrentStep] = useState(1);
-  const [azureKey, setAzureKey] = useState('');
-  const [azureRegion, setAzureRegion] = useState('');
-  const [error, setError] = useState('');
+  const [azureKey, setAzureKey] = useState("");
+  const [azureRegion, setAzureRegion] = useState("");
+  const [error, setError] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [progress, setProgress] = useState(0);
 
   const handleInputChange = (field, value) => {
-    if (field === 'azureKey') {
+    if (field === "azureKey") {
       setAzureKey(value);
-    } else if (field === 'azureRegion') {
+    } else if (field === "azureRegion") {
       setAzureRegion(value);
     }
   };
@@ -38,22 +38,22 @@ export function OnboardingPopup() {
 
   const validateCredentials = async (key, region) => {
     if (!key || !region) {
-      setError('Please enter both Azure key and region');
+      setError("Please enter both Azure key and region");
       return false;
     }
 
     if (isValidating) return false;
 
     setIsValidating(true);
-    setError('');
+    setError("");
 
     try {
       const ttsService = new TTSService(key, region);
       await ttsService.getVoicesList();
       return true;
     } catch (err) {
-      console.error('Validation error:', err);
-      setError('Invalid Azure credentials. Please check your key and region.');
+      console.error("Validation error:", err);
+      setError("Invalid Azure credentials. Please check your key and region.");
       return false;
     } finally {
       setIsValidating(false);
@@ -103,4 +103,4 @@ export function OnboardingPopup() {
       />
     </Container>
   );
-} 
+}

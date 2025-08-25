@@ -7,9 +7,9 @@ import browser from 'webextension-polyfill';
 // First define the base LanguageTab
 const LanguageTab = styled.button`
   padding: 8px 16px;
-  border: 1px solid ${props => props.$active ? '#2563eb' : '#e5e7eb'};
-  background: ${props => props.$active ? '#2563eb' : 'white'};
-  color: ${props => props.$active ? 'white' : '#374151'};
+  border: 1px solid ${props => props.$active ? 'var(--text-accent)' : 'var(--border-primary)'};
+  background: ${props => props.$active ? 'var(--text-accent)' : 'var(--bg-primary)'};
+  color: ${props => props.$active ? 'var(--text-white)' : 'var(--text-secondary)'};
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
@@ -17,8 +17,8 @@ const LanguageTab = styled.button`
   transition: all 0.2s;
 
   &:hover {
-    border-color: #2563eb;
-    color: ${props => props.$active ? 'white' : '#2563eb'};
+    border-color: var(--text-accent);
+    color: ${props => props.$active ? 'var(--text-white)' : 'var(--text-accent)'};
   }
 `;
 
@@ -39,12 +39,12 @@ const MainLanguageTabs = styled.div`
 
 // Then define components that extend LanguageTab
 const OtherLanguageTab = styled(LanguageTab)`
-  background: ${props => props.$active ? '#64748b' : 'white'};
-  border-color: ${props => props.$active ? '#64748b' : '#e5e7eb'};
+  background: ${props => props.$active ? 'var(--text-secondary)' : 'var(--bg-primary)'};
+  border-color: ${props => props.$active ? 'var(--text-secondary)' : 'var(--border-primary)'};
   
   &:hover {
-    border-color: #64748b;
-    color: ${props => props.$active ? 'white' : '#64748b'};
+    border-color: var(--text-secondary);
+    color: ${props => props.$active ? 'var(--text-white)' : 'var(--text-secondary)'};
   }
 `;
 
@@ -70,9 +70,9 @@ const DraggableLanguageTab = styled(LanguageTab)`
 const LanguageSettings = styled.div`
   margin-bottom: 24px;
   padding: 16px;
-  background: #f8fafc;
+  background: var(--bg-secondary);
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-primary);
 `;
 
 const SliderContainer = styled.div`
@@ -108,13 +108,13 @@ const OtherLanguagesSelect = styled.select`
   width: 100%;
   padding: 8px;
   margin-bottom: 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
   font-size: 14px;
-  color: #374151;
+  color: var(--text-secondary);
 
   &:focus {
-    border-color: #2563eb;
+    border-color: var(--text-accent);
     outline: none;
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
   }
@@ -123,11 +123,11 @@ const OtherLanguagesSelect = styled.select`
 // Add these styled components near the top with other styled components
 const PinButton = styled.button`
   padding: 4px 8px;
-  background: ${props => props.$pinned ? '#e5e7eb' : 'transparent'};
-  border: 1px solid #e5e7eb;
+  background: ${props => props.$pinned ? 'var(--bg-hover)' : 'transparent'};
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
   font-size: 12px;
-  color: #374151;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -135,7 +135,7 @@ const PinButton = styled.button`
   margin-left: auto;
   
   &:hover {
-    background: ${props => props.$pinned ? '#d1d5db' : '#f3f4f6'};
+    background: ${props => props.$pinned ? 'var(--bg-hover)' : 'var(--bg-secondary)'};
   }
 `;
 

@@ -45,14 +45,14 @@ const HeaderTitle = styled.h2`
 `;
 
 const HeaderDescription = styled.p`
-  color: #6b7280;
+  color: var(--text-tertiary);
   margin: 0;
   font-size: 0.95rem;
   line-height: 1.5;
 `;
 
 const DocumentLink = styled.a`
-  color: #2563eb;
+  color: var(--text-accent);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -70,12 +70,12 @@ const DocumentLink = styled.a`
 `;
 
 const InfoBox = styled.div`
-  background: #f0f9ff;
-  border-left: 4px solid #2563eb;
+  background: var(--bg-secondary);
+  border-left: 4px solid var(--text-accent);
   padding: 12px 16px;
   margin: 24px 0;
   border-radius: 4px;
-  color: #1e40af;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   line-height: 1.5;
 `;
@@ -92,13 +92,15 @@ const StyledInput = styled.input`
   width: 100%;
   height: 44px;
   padding: 0 ${props => props.$hasEye ? '40px' : '12px'} 0 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
   font-size: 1rem;
   transition: all 0.2s;
   font-family: ${props => props.$isKey ? 'monospace' : 'inherit'};
   box-sizing: border-box;
   text-overflow: ellipsis;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   
   &[type="password"] {
     font-family: text-security-disc;
@@ -107,12 +109,12 @@ const StyledInput = styled.input`
 
   &:focus {
     outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    border-color: var(--text-accent);
+    box-shadow: 0 0 0 3px var(--shadow-focus);
   }
 
   &::placeholder {
-    color: #9ca3af;
+    color: var(--text-tertiary);
   }
 `;
 
@@ -127,20 +129,20 @@ const EyeButton = styled.button`
   background: none;
   border: none;
   cursor: pointer;
-  color: #6b7280;
+  color: var(--text-tertiary);
   border-radius: 4px;
   transition: all 0.2s ease;
   padding: 0;
   z-index: 1;
 
   &:hover {
-    color: #374151;
-    background-color: rgba(0, 0, 0, 0.04);
+    color: var(--text-primary);
+    background-color: var(--bg-hover);
   }
 
   &:focus {
     outline: none;
-    background-color: rgba(0, 0, 0, 0.04);
+    background-color: var(--bg-hover);
   }
 
   svg {

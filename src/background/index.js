@@ -11,7 +11,7 @@ async function createContextMenu() {
       contexts: ["selection"],
     });
   } catch (error) {
-    console.error('Failed to create context menu:', error);
+    console.error("Failed to create context menu:", error);
   }
 }
 
@@ -24,36 +24,40 @@ browser.runtime.onInstalled.addListener(async (details) => {
   await createContextMenu();
 
   // Handle first installation
-  if (details.reason === 'install') {
+  if (details.reason === "install") {
     // Initialize settings with environment variables
     const defaultSettings = {
-      voice: 'en-US-AvaMultilingualNeural',
+      voice: "en-US-AvaMultilingualNeural",
       rate: 1,
       pitch: 1,
-      azureKey: process.env.AZURE_SPEECH_KEY || '',
-      azureRegion: process.env.AZURE_REGION || '',
+      azureKey: process.env.AZURE_SPEECH_KEY || "",
+      azureRegion: process.env.AZURE_REGION || "",
       showKey: false,
-      onboardingCompleted: false
+      onboardingCompleted: false,
     };
 
     // Save settings to storage
-    await browser.storage.local.set({ 
+    await browser.storage.local.set({
       settings: defaultSettings,
-      onboardingCompleted: false
+      onboardingCompleted: false,
     });
-    
+
     // Set badge to indicate setup needed if no Azure credentials
     if (!defaultSettings.azureKey || !defaultSettings.azureRegion) {
-      browser.browserAction.setBadgeText({ text: '!' });
-      browser.browserAction.setBadgeBackgroundColor({ color: '#F59E0B' });
+      browser.browserAction.setBadgeText({ text: "!" });
+      browser.browserAction.setBadgeBackgroundColor({ color: "#F59E0B" });
     }
 
     // Check if we're in development mode
-    if (process.env.NODE_ENV === 'development' && defaultSettings.azureKey && defaultSettings.azureRegion) {
+    if (
+      process.env.NODE_ENV === "development" &&
+      defaultSettings.azureKey &&
+      defaultSettings.azureRegion
+    ) {
       await browser.storage.local.set({ onboardingCompleted: true });
     } else {
       browser.tabs.create({
-        url: browser.runtime.getURL('onboarding.html')
+        url: browser.runtime.getURL("onboarding.html"),
       });
     }
   }
@@ -61,9 +65,9 @@ browser.runtime.onInstalled.addListener(async (details) => {
 
 // Listen for messages from popup to open options
 browser.runtime.onMessage.addListener((message) => {
-  if (message.type === 'OPEN_OPTIONS') {
+  if (message.type === "OPEN_OPTIONS") {
     browser.tabs.create({
-      url: browser.runtime.getURL('options.html')
+      url: browser.runtime.getURL("options.html"),
     });
   }
 });
@@ -72,55 +76,65 @@ browser.runtime.onMessage.addListener((message) => {
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "translate-selected-text" && info.selectionText) {
     try {
-      const { settings } = await browser.storage.local.get('settings');
-      console.log('Retrieved settings:', settings);
+      const { settings } = await browser.storage.local.get("settings");
+      console.log("Retrieved settings:", settings);
 
       if (!settings?.azureKey || !settings?.azureRegion) {
-        await showNotification('Configuration Error', 'Azure credentials not configured. Please check your settings.');
+        await showNotification(
+          "Configuration Error",
+          "Azure credentials not configured. Please check your settings.",
+        );
         return;
       }
-      
-      const ttsService = new TTSService(settings.azureKey, settings.azureRegion);
+
+      const ttsService = new TTSService(
+        settings.azureKey,
+        settings.azureRegion,
+      );
       const audioBlobs = await ttsService.synthesizeSpeech(info.selectionText, {
         voice: settings.voice,
         rate: settings.rate,
-        pitch: settings.pitch
+        pitch: settings.pitch,
       });
-      
+
       if (!audioBlobs || !audioBlobs.length) {
-        throw new Error('Speech synthesis failed to generate audio');
+        throw new Error("Speech synthesis failed to generate audio");
       }
 
       // Stop any currently playing audio and hide the window
-      await browser.tabs.sendMessage(tab.id, { type: 'STOP_AUDIO' });
+      await browser.tabs.sendMessage(tab.id, { type: "STOP_AUDIO" });
 
       // Combine all audio blobs into one
-      const combinedBlob = new Blob(audioBlobs, { type: 'audio/mp3' });
+      const combinedBlob = new Blob(audioBlobs, { type: "audio/mp3" });
       const audioUrl = URL.createObjectURL(combinedBlob);
 
       // Play using the injected player through messaging
-      await browser.tabs.sendMessage(tab.id, {
-        type: 'PLAY_AUDIO',
-        url: audioUrl,
-        rate: settings.rate || 1
-      }).catch(error => {
-        console.error('Playback error:', error);
-        URL.revokeObjectURL(audioUrl);
-      });
-
+      await browser.tabs
+        .sendMessage(tab.id, {
+          type: "PLAY_AUDIO",
+          url: audioUrl,
+          rate: settings.rate || 1,
+        })
+        .catch((error) => {
+          console.error("Playback error:", error);
+          URL.revokeObjectURL(audioUrl);
+        });
     } catch (error) {
-      console.error('TTS error:', error);
-      await showNotification('Text-to-Speech Error', `Failed to convert text to speech: ${error.message}`);
+      console.error("TTS error:", error);
+      await showNotification(
+        "Text-to-Speech Error",
+        `Failed to convert text to speech: ${error.message}`,
+      );
       // Hide the window if there's an error
-      await browser.tabs.sendMessage(tab.id, { type: 'STOP_AUDIO' });
+      await browser.tabs.sendMessage(tab.id, { type: "STOP_AUDIO" });
     }
   }
 });
 
 // Update the message listener for stopping audio
 browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'STOP_ALL_AUDIO') {
-    browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+  if (request.type === "STOP_ALL_AUDIO") {
+    browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
       if (tabs[0]) {
         browser.tabs.executeScript(tabs[0].id, {
           code: `
@@ -133,7 +147,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
               }
               player.remove();
             }
-          `
+          `,
         });
       }
       sendResponse({ success: true });
@@ -146,21 +160,19 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
 async function showNotification(title, message) {
   try {
     await browser.notifications.create({
-      type: 'basic',
-      iconUrl: browser.runtime.getURL('icon-48.png'),
+      type: "basic",
+      iconUrl: browser.runtime.getURL("icon-48.png"),
       title,
-      message
+      message,
     });
   } catch (error) {
-    console.error('Failed to show notification:', error);
+    console.error("Failed to show notification:", error);
     // Fallback to alert if notifications aren't available
     alert(`${title}: ${message}`);
   }
 }
 
 // Add this somewhere in your code to debug
-browser.storage.local.get(['voiceSettings']).then(result => {
-  console.log('Current voice settings in storage:', result.voiceSettings);
+browser.storage.local.get(["voiceSettings"]).then((result) => {
+  console.log("Current voice settings in storage:", result.voiceSettings);
 });
-
-

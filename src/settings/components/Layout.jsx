@@ -5,6 +5,9 @@ export const SettingsContainer = styled.div`
   margin: 0 auto;
   padding: 20px;
   font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  min-height: 100vh;
 `;
 
 export const SettingsLayout = styled.div`

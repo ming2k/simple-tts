@@ -5,19 +5,19 @@ import { Section } from '../common';
 const AboutSection = styled.div`
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background: #f8fafc;
+  background: var(--bg-secondary);
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-primary);
 `;
 
 const Title = styled.h3`
-  color: #0f172a;
+  color: var(--text-primary);
   font-size: 1.2rem;
   margin: 0 0 1rem 0;
 `;
 
 const Description = styled.p`
-  color: #475569;
+  color: var(--text-secondary);
   line-height: 1.6;
   margin: 0.75rem 0;
 `;
@@ -31,21 +31,21 @@ const FeatureList = styled.ul`
     margin: 0.75rem 0;
     padding-left: 1.75rem;
     position: relative;
-    color: #475569;
+    color: var(--text-secondary);
     line-height: 1.5;
 
     &:before {
       content: "•";
       position: absolute;
       left: 0.5rem;
-      color: #2563eb;
+      color: var(--text-accent);
       font-weight: bold;
     }
   }
 `;
 
 const Link = styled.a`
-  color: #2563eb;
+  color: var(--text-accent);
   text-decoration: none;
   font-weight: 500;
   
