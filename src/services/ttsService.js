@@ -177,12 +177,20 @@ export class TTSService {
     return this.splitIntoChunks(text).map(chunk => chunk.text);
   }
 
-  createSSML(text, voice = "en-US-AvaMultilingualNeural", rate = 1, pitch = 1) {
+  createSSML(text, voice = "en-US-AvaMultilingualNeural", rate = 1, pitch = 1, _detectedLanguage = null) {
     const escapedText = this.escapeXmlChars(text);
-    const lang = voice.split("-").slice(0, 2).join("-");
+    
+    // Use the voice's language for SSML construction
+    const voiceLang = voice.split("-").slice(0, 2).join("-");
+    
+    // If we have detected language info, we could use it for better SSML construction
+    // but for now, use the voice's language which should match the detected language
+    const xmlLang = voiceLang;
 
-    return `<speak version='1.0' xml:lang='${lang}'>
-      <voice xml:lang='${lang}' name='${voice}'>
+    console.log(`Creating SSML with voice: ${voice}, rate: ${rate}, pitch: ${pitch}%, language: ${xmlLang}`);
+
+    return `<speak version='1.0' xml:lang='${xmlLang}'>
+      <voice xml:lang='${xmlLang}' name='${voice}'>
           <prosody rate="${rate}" pitch="${pitch}%">
               ${escapedText}
           </prosody>
@@ -208,11 +216,13 @@ export class TTSService {
 
     try {
       const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+      const analysis = analyzeTextLanguage(text);
       const ssml = this.createSSML(
         text,
         settings.voice,
         settings.rate || 1,
         pitchPercent,
+        analysis.dominant
       );
 
       return await this.synthesizeWithChunkedTransfer(ssml);
@@ -260,11 +270,13 @@ export class TTSService {
     }
 
     const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+    const analysis = analyzeTextLanguage(text);
     const ssml = this.createSSML(
       text,
       settings.voice,
       settings.rate || 1,
       pitchPercent,
+      analysis.dominant
     );
 
     return new Promise((resolve, reject) => {
@@ -325,21 +337,41 @@ export class TTSService {
   async synthesizeWithSequentialProcessing(text, userSettings = {}) {
     try {
       // Get settings
-      const { settings, voiceSettings } = await browser.storage.local.get([
+      const { settings, languageVoiceSettings } = await browser.storage.local.get([
         "settings",
-        "voiceSettings",
+        "languageVoiceSettings",
       ]);
 
-      // Analyze language and get final settings
+      // Analyze language and get final settings with Default fallback
       const analysis = analyzeTextLanguage(text);
-      let languageSettings;
+      console.log(`TTS - Language detected: ${analysis.dominant} (${Math.round(analysis.confidence * 100)}% confidence)`);
       
-      if (voiceSettings && voiceSettings[analysis.dominant]) {
-        languageSettings = voiceSettings[analysis.dominant];
-      } else {
+      let languageSettings;
+      if (languageVoiceSettings && languageVoiceSettings[analysis.dominant]) {
+        // Use language-specific settings if available
         languageSettings = {
-          voice: getDefaultVoice(analysis.dominant),
+          voice: languageVoiceSettings[analysis.dominant].voice,
+          rate: languageVoiceSettings[analysis.dominant].rate || 1,
+          pitch: languageVoiceSettings[analysis.dominant].pitch || 1
         };
+        console.log(`TTS - Using saved settings for ${analysis.dominant}:`, languageSettings);
+      } else if (languageVoiceSettings && languageVoiceSettings['default']) {
+        // Use Default settings as fallback when language not configured
+        languageSettings = {
+          voice: languageVoiceSettings['default'].voice,
+          rate: languageVoiceSettings['default'].rate || 1,
+          pitch: languageVoiceSettings['default'].pitch || 1
+        };
+        console.log(`TTS - Language ${analysis.dominant} not configured, using Default settings:`, languageSettings);
+      } else {
+        // Final fallback to hardcoded default
+        const defaultVoice = getDefaultVoice(analysis.dominant);
+        languageSettings = {
+          voice: defaultVoice,
+          rate: 1,
+          pitch: 1
+        };
+        console.log(`TTS - No settings found, using hardcoded default for ${analysis.dominant}:`, languageSettings);
       }
 
       const finalSettings = {
@@ -359,6 +391,11 @@ export class TTSService {
         this.baseUrl = `https://${settings.azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
       }
 
+      // Log final voice selection for sequential processing
+      console.log(`🎤 Sequential TTS Voice Selection:`);
+      console.log(`  📝 Text Language: ${analysis.dominant} (${Math.round(analysis.confidence * 100)}% confidence)`);
+      console.log(`  🔊 Voice Model: ${finalSettings.voice}`);
+
       // Segment text by punctuation for sequential processing
       const textSegments = this.segmentTextByPunctuation(text);
       console.log('TTS: Processing', textSegments.length, 'segments sequentially');
@@ -371,7 +408,7 @@ export class TTSService {
         
         try {
           const mp3Blob = await this.synthesizeWithChunkedTransfer(
-            this.createSSML(segment.text, finalSettings.voice, finalSettings.rate, ((finalSettings.pitch || 1) - 1) * 100)
+            this.createSSML(segment.text, finalSettings.voice, finalSettings.rate, ((finalSettings.pitch || 1) - 1) * 100, analysis.dominant)
           );
           
           audioSegments.push({
@@ -406,21 +443,41 @@ export class TTSService {
   async synthesizeWithParallelProcessing(text, userSettings = {}) {
     try {
       // Get settings
-      const { settings, voiceSettings } = await browser.storage.local.get([
+      const { settings, languageVoiceSettings } = await browser.storage.local.get([
         "settings",
-        "voiceSettings",
+        "languageVoiceSettings",
       ]);
 
-      // Analyze language and get final settings
+      // Analyze language and get final settings with Default fallback
       const analysis = analyzeTextLanguage(text);
-      let languageSettings;
+      console.log(`TTS - Language detected: ${analysis.dominant} (${Math.round(analysis.confidence * 100)}% confidence)`);
       
-      if (voiceSettings && voiceSettings[analysis.dominant]) {
-        languageSettings = voiceSettings[analysis.dominant];
-      } else {
+      let languageSettings;
+      if (languageVoiceSettings && languageVoiceSettings[analysis.dominant]) {
+        // Use language-specific settings if available
         languageSettings = {
-          voice: getDefaultVoice(analysis.dominant),
+          voice: languageVoiceSettings[analysis.dominant].voice,
+          rate: languageVoiceSettings[analysis.dominant].rate || 1,
+          pitch: languageVoiceSettings[analysis.dominant].pitch || 1
         };
+        console.log(`TTS - Using saved settings for ${analysis.dominant}:`, languageSettings);
+      } else if (languageVoiceSettings && languageVoiceSettings['default']) {
+        // Use Default settings as fallback when language not configured
+        languageSettings = {
+          voice: languageVoiceSettings['default'].voice,
+          rate: languageVoiceSettings['default'].rate || 1,
+          pitch: languageVoiceSettings['default'].pitch || 1
+        };
+        console.log(`TTS - Language ${analysis.dominant} not configured, using Default settings:`, languageSettings);
+      } else {
+        // Final fallback to hardcoded default
+        const defaultVoice = getDefaultVoice(analysis.dominant);
+        languageSettings = {
+          voice: defaultVoice,
+          rate: 1,
+          pitch: 1
+        };
+        console.log(`TTS - No settings found, using hardcoded default for ${analysis.dominant}:`, languageSettings);
       }
 
       const finalSettings = {
@@ -440,6 +497,11 @@ export class TTSService {
         this.baseUrl = `https://${settings.azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
       }
 
+      // Log final voice selection for parallel processing
+      console.log(`🎤 Parallel TTS Voice Selection:`);
+      console.log(`  📝 Text Language: ${analysis.dominant} (${Math.round(analysis.confidence * 100)}% confidence)`);
+      console.log(`  🔊 Voice Model: ${finalSettings.voice}`);
+
       // Split text into chunks for parallel processing
       const textChunks = this.splitIntoChunks(text);
       console.log('TTS: Processing', textChunks.length, 'chunks in parallel');
@@ -448,7 +510,7 @@ export class TTSService {
       const synthesisTasks = textChunks.map(async (chunk, index) => {
         try {
           const mp3Blob = await this.synthesizeWithChunkedTransfer(
-            this.createSSML(chunk.text, finalSettings.voice, finalSettings.rate, ((finalSettings.pitch || 1) - 1) * 100)
+            this.createSSML(chunk.text, finalSettings.voice, finalSettings.rate, ((finalSettings.pitch || 1) - 1) * 100, analysis.dominant)
           );
           return {
             order: chunk.order,
@@ -485,27 +547,39 @@ export class TTSService {
         "voiceSettings",
       ]);
 
-      // Analyze text language
+      // Analyze text language with detailed logging
       const analysis = analyzeTextLanguage(text);
-      console.log("Text language detected:", analysis.dominant);
-      console.log("Full voice settings:", voiceSettings);
+      console.log(`🎯 TTS Language Detection:`, {
+        detectedLanguage: analysis.dominant,
+        confidence: `${Math.round(analysis.confidence * 100)}%`,
+        composition: analysis.composition,
+        textPreview: text.substring(0, 100) + (text.length > 100 ? '...' : '')
+      });
 
-      // More explicit lookup of language settings
+      // Enhanced lookup with Default settings fallback
       let languageSettings;
+      let voiceSource = '';
       if (voiceSettings && voiceSettings[analysis.dominant]) {
+        // Use language-specific settings if available
         languageSettings = voiceSettings[analysis.dominant];
-        console.log(
-          `Found voice settings for ${analysis.dominant}:`,
-          languageSettings,
-        );
+        voiceSource = `language-specific (${analysis.dominant})`;
+        console.log(`✅ Using saved voice settings for ${analysis.dominant}:`, languageSettings);
+      } else if (voiceSettings && voiceSettings['default']) {
+        // Use Default settings as fallback when language not configured
+        languageSettings = voiceSettings['default'];
+        voiceSource = 'Default fallback';
+        console.log(`⚠️ Language ${analysis.dominant} not configured, using Default settings:`, languageSettings);
       } else {
+        // Final fallback to hardcoded default
+        const defaultVoice = getDefaultVoice(analysis.dominant);
         languageSettings = {
-          voice: getDefaultVoice(analysis.dominant),
+          voice: defaultVoice,
+          rate: 1,
+          pitch: 1
         };
-        console.log(
-          `Using default voice for ${analysis.dominant}:`,
-          languageSettings,
-        );
+        voiceSource = 'hardcoded fallback';
+        console.log(`🔄 No Default settings found, using hardcoded default for ${analysis.dominant}:`, languageSettings);
+        console.log(`Available voice settings:`, Object.keys(voiceSettings || {}));
       }
 
       // Determine final settings with proper fallback chain
@@ -516,15 +590,19 @@ export class TTSService {
         ...userSettings,
       };
 
-      // Ensure we're using the correct voice
-      if (!finalSettings.voice || finalSettings.voice.startsWith("zh-")) {
-        console.warn(
-          "Incorrect voice detected, forcing to proper language voice",
-        );
+      // Ensure we have a voice selected - fallback to default if none
+      if (!finalSettings.voice) {
+        console.warn("No voice configured, using hardcoded default");
         finalSettings.voice = getDefaultVoice(analysis.dominant);
       }
 
-      console.log("Final settings to be used:", finalSettings);
+      // Final comprehensive logging
+      console.log(`🎤 TTS Voice Selection Summary:`);
+      console.log(`  📝 Text Language: ${analysis.dominant} (${Math.round(analysis.confidence * 100)}% confidence)`);
+      console.log(`  🔊 Voice Model: ${finalSettings.voice}`);
+      console.log(`  📊 Settings Source: ${voiceSource}`);
+      console.log(`  ⚡ Rate: ${finalSettings.rate}x, Pitch: ${finalSettings.pitch}x`);
+      console.log(`  📋 Full Settings:`, finalSettings);
 
       // Update instance credentials if needed
       if (
@@ -829,20 +907,43 @@ export class TTSService {
   async playTextWithChunkedStreaming(text, userSettings = {}) {
     try {
       // Get settings
-      const { settings, voiceSettings } = await browser.storage.local.get([
+      const { settings, languageVoiceSettings } = await browser.storage.local.get([
         "settings",
-        "voiceSettings",
+        "languageVoiceSettings",
       ]);
 
       const analysis = analyzeTextLanguage(text);
-      let languageSettings;
+      console.log(`TTS Language Detection:`, {
+        detectedLanguage: analysis.dominant,
+        confidence: `${Math.round(analysis.confidence * 100)}%`
+      });
       
-      if (voiceSettings && voiceSettings[analysis.dominant]) {
-        languageSettings = voiceSettings[analysis.dominant];
-      } else {
+      let languageSettings;
+      if (languageVoiceSettings && languageVoiceSettings[analysis.dominant]) {
+        // Use language-specific settings if available
         languageSettings = {
-          voice: getDefaultVoice(analysis.dominant),
+          voice: languageVoiceSettings[analysis.dominant].voice,
+          rate: languageVoiceSettings[analysis.dominant].rate || 1,
+          pitch: languageVoiceSettings[analysis.dominant].pitch || 1
         };
+        console.log(`Streaming TTS - Using saved settings for ${analysis.dominant}:`, languageSettings);
+      } else if (languageVoiceSettings && languageVoiceSettings['default']) {
+        // Use Default settings as fallback when language not configured
+        languageSettings = {
+          voice: languageVoiceSettings['default'].voice,
+          rate: languageVoiceSettings['default'].rate || 1,
+          pitch: languageVoiceSettings['default'].pitch || 1
+        };
+        console.log(`Streaming TTS - Language ${analysis.dominant} not configured, using Default settings:`, languageSettings);
+      } else {
+        // Final fallback to hardcoded default
+        const defaultVoice = getDefaultVoice(analysis.dominant);
+        languageSettings = {
+          voice: defaultVoice,
+          rate: 1,
+          pitch: 1
+        };
+        console.log(`Streaming TTS - No settings found, using hardcoded default for ${analysis.dominant}:`, languageSettings);
       }
 
       const finalSettings = {
@@ -851,6 +952,11 @@ export class TTSService {
         ...languageSettings,
         ...userSettings,
       };
+
+      // Log final voice selection for streaming TTS
+      console.log(`🎤 Streaming TTS Voice Selection:`);
+      console.log(`  📝 Text Language: ${analysis.dominant} (${Math.round(analysis.confidence * 100)}% confidence)`);
+      console.log(`  🔊 Voice Model: ${finalSettings.voice}`);
 
       // Update credentials if needed
       if (

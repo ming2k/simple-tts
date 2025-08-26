@@ -4,6 +4,9 @@ import { ProgressBar } from "../StyledComponents";
 import { RenderSteps } from "./steps/RenderSteps";
 import { NavigationButtons } from "./NavigationButtons";
 import { TTSService } from "../../services/TTSService";
+import browser from "webextension-polyfill";
+
+const TOTAL_STEPS = 3;
 
 const Container = styled.div`
   width: 100%;
@@ -20,7 +23,7 @@ export function OnboardingPopup() {
   const [azureRegion, setAzureRegion] = useState("");
   const [error, setError] = useState("");
   const [isValidating, setIsValidating] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [progress] = useState(0);
 
   const handleInputChange = (field, value) => {
     if (field === "azureKey") {
@@ -71,9 +74,17 @@ export function OnboardingPopup() {
       if (!isValid) return;
 
       // Only save if validation succeeds
-      const saved = await saveSettings();
-      if (saved) {
+      try {
+        await browser.storage.local.set({
+          settings: {
+            azureKey,
+            azureRegion
+          }
+        });
         setCurrentStep(3);
+      } catch (err) {
+        console.error('Failed to save settings:', err);
+        setError('Failed to save settings. Please try again.');
       }
       return;
     }

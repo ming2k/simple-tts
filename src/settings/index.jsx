@@ -67,7 +67,7 @@ function Settings() {
       // Set initial locale based on current voice
       if (currentSettings.voice) {
         const currentVoiceLocale = Object.entries(voicesList).find(
-          ([locale, voices]) =>
+          ([_locale, voices]) =>
             voices.some((voice) => voice.value === currentSettings.voice),
         );
 
@@ -94,7 +94,7 @@ function Settings() {
 
     // If changing voice, update the selected locale
     if (name === "voice") {
-      const newLocale = Object.entries(groupedVoices).find(([locale, voices]) =>
+      const newLocale = Object.entries(groupedVoices).find(([_locale, voices]) =>
         voices.some((voice) => voice.value === value),
       )?.[0];
 
@@ -104,12 +104,7 @@ function Settings() {
     }
   };
 
-  const toggleKeyVisibility = () => {
-    setSettings((prev) => ({
-      ...prev,
-      showKey: !prev.showKey,
-    }));
-  };
+  // Removed unused toggleKeyVisibility function
 
   const handleSave = async () => {
     try {

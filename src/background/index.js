@@ -175,7 +175,7 @@ async function showNotification(title, message) {
   }
 }
 
-// Add this somewhere in your code to debug
-browser.storage.local.get(["voiceSettings"]).then((result) => {
-  console.log("Current voice settings in storage:", result.voiceSettings);
+// Debug voice settings in storage
+browser.storage.local.get(["languageVoiceSettings"]).then((result) => {
+  console.log("Current language voice settings in storage:", result.languageVoiceSettings);
 });
