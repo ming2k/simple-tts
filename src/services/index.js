@@ -11,20 +11,20 @@ export class SimpleTTS {
     return await this.audioController.stopAudio();
   }
 
-  async playTextSequential(text, userSettings = {}) {
-    return await this.audioController.playTextSequential(text, userSettings);
+  async playTextSequential(text, userSettings = {}, onProgress = null) {
+    return await this.audioController.playTextSequential(text, userSettings, onProgress);
   }
 
-  async playTextParallel(text, userSettings = {}) {
-    return await this.audioController.playTextParallel(text, userSettings);
+  async playTextParallel(text, userSettings = {}, onProgress = null) {
+    return await this.audioController.playTextParallel(text, userSettings, onProgress);
   }
 
-  async playTextWithSequentialConcatenation(text, userSettings = {}) {
-    return await this.audioController.playTextWithSequentialConcatenation(text, userSettings);
+  async playTextWithSequentialConcatenation(text, userSettings = {}, onProgress = null) {
+    return await this.audioController.playTextWithSequentialConcatenation(text, userSettings, onProgress);
   }
 
-  async synthesizeSpeech(text, userSettings = {}) {
-    return await this.audioController.synthesizeSpeech(text, userSettings);
+  async synthesizeSpeech(text, userSettings = {}, onProgress = null) {
+    return await this.audioController.synthesizeSpeech(text, userSettings, onProgress);
   }
 
   async getSequentialAudioSegments(text, userSettings = {}) {
@@ -35,9 +35,6 @@ export class SimpleTTS {
     return await this.ttsService.getVoicesList();
   }
 
-  splitIntoSentences(text) {
-    return this.ttsService.splitIntoSentences(text);
-  }
 }
 
 export { TTSService } from "./ttsService.js";

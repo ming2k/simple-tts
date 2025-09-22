@@ -3,7 +3,6 @@ import { SimpleTTS } from '../index.js';
 // Mock the dependencies
 const mockTTSService = {
   getVoicesList: jest.fn(),
-  splitIntoSentences: jest.fn(),
 };
 
 const mockAudioController = {
@@ -116,16 +115,6 @@ describe('SimpleTTS Integration', () => {
       expect(result).toBe(mockVoices);
     });
 
-    test('should delegate splitIntoSentences to TTS service', () => {
-      const mockText = 'First sentence. Second sentence.';
-      const mockSentences = ['First sentence.', 'Second sentence.'];
-      mockTTSService.splitIntoSentences.mockReturnValue(mockSentences);
-
-      const result = simpleTTS.splitIntoSentences(mockText);
-
-      expect(mockTTSService.splitIntoSentences).toHaveBeenCalledWith(mockText);
-      expect(result).toBe(mockSentences);
-    });
   });
 
   describe('error handling', () => {
@@ -151,11 +140,9 @@ describe('SimpleTTS Integration', () => {
 
       // Simulate a typical workflow
       await simpleTTS.stopAudio();
-      const sentences = simpleTTS.splitIntoSentences(mockText);
       await simpleTTS.playTextSequential(mockText, mockSettings);
 
       expect(mockAudioController.stopAudio).toHaveBeenCalledTimes(1);
-      expect(mockTTSService.splitIntoSentences).toHaveBeenCalledWith(mockText);
       expect(mockAudioController.playTextSequential).toHaveBeenCalledWith(mockText, mockSettings);
     });
 

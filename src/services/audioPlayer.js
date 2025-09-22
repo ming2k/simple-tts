@@ -2,6 +2,7 @@ export class AudioPlayer {
   constructor() {
     this.audioContext = null;
     this.currentAudio = null;
+    this.streamingPlayer = null;
   }
 
   async initAudioContext() {
@@ -31,6 +32,12 @@ export class AudioPlayer {
       }
       this.currentAudio = null;
     }
+
+    if (this.streamingPlayer) {
+      this.streamingPlayer.pause();
+      this.streamingPlayer.currentTime = 0;
+      this.streamingPlayer = null;
+    }
   }
 
   async playAudioChunk(audioBlob, rate = 1, existingContext = null) {
@@ -47,7 +54,15 @@ export class AudioPlayer {
           this.currentAudio = { context, source };
 
           const arrayBuffer = await audioBlob.arrayBuffer();
-          const audioBuffer = await context.decodeAudioData(arrayBuffer);
+          let audioBuffer;
+
+          try {
+            audioBuffer = await context.decodeAudioData(arrayBuffer);
+          } catch (decodeError) {
+            console.warn('Failed to decode audio format:', decodeError);
+            // Audio format not supported by WebAudio API
+            throw new Error(`Audio format not supported: ${decodeError.message}`);
+          }
 
           source.buffer = audioBuffer;
           source.playbackRate.value = rate;
@@ -103,13 +118,13 @@ export class AudioPlayer {
     }
   }
 
-  async concatenateMP3Chunks(mp3Chunks) {
+  async concatenateAudioChunks(audioChunks) {
     const audioContext = await this.initAudioContext();
     const audioBuffers = [];
     let totalSamples = 0;
 
-    for (let i = 0; i < mp3Chunks.length; i++) {
-      const chunk = mp3Chunks[i];
+    for (let i = 0; i < audioChunks.length; i++) {
+      const chunk = audioChunks[i];
 
       try {
         const arrayBuffer = await chunk.blob.arrayBuffer();
@@ -138,6 +153,87 @@ export class AudioPlayer {
     }
 
     return concatenatedBuffer;
+  }
+
+  // Keep backward compatibility
+  async concatenateMP3Chunks(mp3Chunks) {
+    return await this.concatenateAudioChunks(mp3Chunks);
+  }
+
+  async playStreamingAudio(audioBlob, rate = 1, onProgress = null) {
+    try {
+      // Check if we're in a browser extension context
+      if (typeof window !== 'undefined' && window.ttsPlayer) {
+        // Use the content script's player for browser extension
+        const objectUrl = URL.createObjectURL(audioBlob);
+        try {
+          await window.ttsPlayer.play(objectUrl, rate);
+          if (onProgress) onProgress({ stage: 'ready', progress: 100 });
+          return;
+        } catch (extensionError) {
+          console.warn('Extension player failed, trying direct audio:', extensionError);
+          URL.revokeObjectURL(objectUrl);
+          // Fall through to direct audio
+        }
+      }
+
+      // Direct HTML5 audio approach
+      const audio = new Audio();
+      this.streamingPlayer = audio;
+
+      // Set up the audio source
+      const objectUrl = URL.createObjectURL(audioBlob);
+      audio.src = objectUrl;
+      audio.playbackRate = rate;
+
+      return new Promise((resolve, reject) => {
+        let resolved = false;
+
+        const cleanup = () => {
+          if (!resolved) {
+            URL.revokeObjectURL(objectUrl);
+            this.streamingPlayer = null;
+            resolved = true;
+          }
+        };
+
+        audio.oncanplaythrough = () => {
+          if (onProgress) onProgress({ stage: 'ready', progress: 100 });
+        };
+
+        audio.onended = () => {
+          cleanup();
+          resolve();
+        };
+
+        audio.onerror = (error) => {
+          console.error('Direct audio playback error:', error);
+          cleanup();
+
+          // Try WebAudio as final fallback
+          this.playAudioChunk(audioBlob, rate)
+            .then(resolve)
+            .catch(reject);
+        };
+
+        // Start playback
+        audio.play().catch((playError) => {
+          console.error('Audio play() failed:', playError);
+          cleanup();
+
+          // Try WebAudio as final fallback
+          this.playAudioChunk(audioBlob, rate)
+            .then(resolve)
+            .catch(reject);
+        });
+      });
+
+    } catch (error) {
+      console.error('Streaming playback failed completely, using WebAudio fallback:', error);
+
+      // Final fallback to WebAudio
+      return await this.playAudioChunk(audioBlob, rate);
+    }
   }
 
   async playAudioSegmentsInOrder(audioSegments, playbackRate = 1) {

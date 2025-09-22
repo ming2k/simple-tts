@@ -74,7 +74,10 @@ browser.runtime.onMessage.addListener((message) => {
 
 // Modify the context menu click handler
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
+  console.log("Context menu clicked:", info);
+
   if (info.menuItemId === "translate-selected-text" && info.selectionText) {
+    console.log("Processing TTS for selected text:", info.selectionText);
     try {
       const { settings } = await browser.storage.local.get("settings");
       console.log("Retrieved settings:", settings);
@@ -95,8 +98,8 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
       // Stop any currently playing audio first
       await browser.tabs.sendMessage(tab.id, { type: "STOP_AUDIO" });
       
-      // Use sequential processing with concatenated playback for context menu
-      const audioSegments = await ttsService.synthesizeWithSequentialProcessing(info.selectionText, {
+      // Use simplified synthesis for context menu
+      const audioSegments = await ttsService.synthesizeSpeech(info.selectionText, {
         voice: settings.voice,
         rate: settings.rate,
         pitch: settings.pitch,
@@ -106,22 +109,37 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         throw new Error("Speech synthesis failed to generate audio");
       }
 
-      // Concatenate all segments into one blob for web playback
-      const audioBlobs = audioSegments.map(segment => segment.blob);
-      const combinedBlob = new Blob(audioBlobs, { type: "audio/mp3" });
+      // Handle the simplified audio segments format
+      let combinedBlob;
+      if (audioSegments[0] && audioSegments[0].blob) {
+        // Old format with .blob property
+        const audioBlobs = audioSegments.map(segment => segment.blob);
+        combinedBlob = new Blob(audioBlobs, { type: "audio/mpeg" });
+      } else {
+        // New simplified format - direct blob array
+        combinedBlob = audioSegments.length === 1 ? audioSegments[0] : new Blob(audioSegments, { type: "audio/mpeg" });
+      }
       const audioUrl = URL.createObjectURL(combinedBlob);
 
       // Play using the injected player through messaging
-      await browser.tabs
-        .sendMessage(tab.id, {
+      console.log("Sending PLAY_AUDIO message to tab:", tab.id);
+      try {
+        const response = await browser.tabs.sendMessage(tab.id, {
           type: "PLAY_AUDIO",
           url: audioUrl,
           rate: settings.rate || 1,
-        })
-        .catch((error) => {
-          console.error("Playback error:", error);
-          URL.revokeObjectURL(audioUrl);
         });
+        console.log("PLAY_AUDIO response:", response);
+      } catch (error) {
+        console.error("Failed to send PLAY_AUDIO message:", error);
+        URL.revokeObjectURL(audioUrl);
+
+        // Try to show a notification about the error
+        await showNotification(
+          "TTS Playback Error",
+          "Could not play audio. Please try refreshing the page."
+        );
+      }
     } catch (error) {
       console.error("TTS error:", error);
       await showNotification(

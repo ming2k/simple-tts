@@ -1,4 +1,3 @@
-import { analyzeTextLanguage, getDefaultVoice } from "../utils/languageConfig.js";
 import { TextProcessor } from "./textProcessor.js";
 import browser from "webextension-polyfill";
 
@@ -41,8 +40,7 @@ export class TTSService {
         method: 'POST',
         headers: {
           'Ocp-Apim-Subscription-Key': this.azureKey,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': '0'
+          'Content-Type': 'application/x-www-form-urlencoded'
         }
       });
 
@@ -60,14 +58,19 @@ export class TTSService {
     }
   }
 
-  async synthesizeSingleChunk(text, settings = {}) {
+  async synthesizeSingleChunk(text, settings = {}, onProgress = null) {
     const pitchPercent = ((settings.pitch || 1) - 1) * 100;
     const ssml = this.createSSML(text, settings.voice, settings.rate || 1, pitchPercent);
 
-    return await this.synthesizeWithChunkedTransfer(ssml);
+    return await this.synthesizeWithStreaming(ssml, onProgress);
   }
 
+  // Keep backward compatibility
   async synthesizeWithChunkedTransfer(ssml) {
+    return await this.synthesizeWithStreaming(ssml);
+  }
+
+  async synthesizeWithStreaming(ssml, onChunkReceived = null) {
     const accessToken = await this.getAccessToken();
 
     return new Promise((resolve, reject) => {
@@ -76,15 +79,30 @@ export class TTSService {
 
       xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
       xhr.setRequestHeader('Content-Type', 'application/ssml+xml');
-      xhr.setRequestHeader('X-Microsoft-OutputFormat', 'riff-24khz-16bit-mono-pcm');
+      xhr.setRequestHeader('X-Microsoft-OutputFormat', 'audio-24khz-48kbitrate-mono-mp3');
       xhr.setRequestHeader('User-Agent', 'TTS-Browser-Extension');
-      xhr.setRequestHeader('Content-Length', ssml.length.toString());
 
       xhr.responseType = 'arraybuffer';
 
+      // Enable streaming by monitoring progress
+      let lastProcessedBytes = 0;
+      const chunks = [];
+
+      xhr.onprogress = function(e) {
+        if (e.lengthComputable && onChunkReceived) {
+          const currentBytes = e.loaded;
+          if (currentBytes > lastProcessedBytes) {
+            // Calculate progress percentage
+            const progress = (currentBytes / e.total) * 100;
+            onChunkReceived({ progress, loaded: currentBytes, total: e.total });
+            lastProcessedBytes = currentBytes;
+          }
+        }
+      };
+
       xhr.onload = function() {
         if (xhr.status === 200) {
-          const blob = new Blob([xhr.response], { type: 'audio/wav' });
+          const blob = new Blob([xhr.response], { type: 'audio/mpeg' });
           resolve(blob);
         } else {
           reject(new Error(`Speech synthesis failed (${xhr.status}): ${xhr.statusText}`));
@@ -118,18 +136,14 @@ export class TTSService {
   }
 
   async getVoiceSettings(text, userSettings = {}) {
-    const { languageVoiceSettings } = await this.getSettings();
-    const analysis = analyzeTextLanguage(text);
+    const { settings, languageVoiceSettings } = await this.getSettings();
 
     let languageSettings;
-    if (languageVoiceSettings && languageVoiceSettings[analysis.dominant]) {
-      languageSettings = languageVoiceSettings[analysis.dominant];
-    } else if (languageVoiceSettings && languageVoiceSettings['default']) {
+    if (languageVoiceSettings && languageVoiceSettings['default']) {
       languageSettings = languageVoiceSettings['default'];
     } else {
-      const defaultVoice = getDefaultVoice(analysis.dominant);
       languageSettings = {
-        voice: defaultVoice,
+        voice: "en-US-JennyNeural",
         rate: 1,
         pitch: 1
       };
@@ -185,7 +199,4 @@ export class TTSService {
     return groupedVoices;
   }
 
-  splitIntoSentences(text) {
-    return this.textProcessor.splitIntoChunks(text).map(chunk => chunk.text);
-  }
 }

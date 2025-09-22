@@ -20,23 +20,56 @@ function createMiniWindow() {
   style.textContent = `
     :root {
       --tts-bg-primary: #ffffff;
-      --tts-bg-secondary: #f3f4f6;
-      --tts-bg-hover: #e5e7eb;
-      --tts-text-primary: #374151;
+      --tts-bg-secondary: #f8fafc;
+      --tts-bg-hover: #e2e8f0;
+      --tts-text-primary: #1e293b;
+      --tts-text-secondary: #64748b;
       --tts-text-accent: #3b82f6;
-      --tts-border: rgba(0,0,0,0.1);
-      --tts-shadow: rgba(0,0,0,0.15);
+      --tts-border: rgba(0,0,0,0.08);
+      --tts-shadow: rgba(0,0,0,0.12);
+      --tts-shadow-active: rgba(0,0,0,0.2);
     }
-    
+
     @media (prefers-color-scheme: dark) {
       :root {
-        --tts-bg-primary: #1f2937;
-        --tts-bg-secondary: #374151;
-        --tts-bg-hover: #4b5563;
-        --tts-text-primary: #f9fafb;
+        --tts-bg-primary: #0f172a;
+        --tts-bg-secondary: #1e293b;
+        --tts-bg-hover: #334155;
+        --tts-text-primary: #f1f5f9;
+        --tts-text-secondary: #94a3b8;
         --tts-text-accent: #60a5fa;
-        --tts-border: rgba(255,255,255,0.1);
-        --tts-shadow: rgba(0,0,0,0.3);
+        --tts-border: rgba(255,255,255,0.08);
+        --tts-shadow: rgba(0,0,0,0.4);
+        --tts-shadow-active: rgba(0,0,0,0.6);
+      }
+    }
+
+    /* Reset any potential conflicts */
+    #tts-mini-window * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      #tts-mini-window {
+        padding: 5px 8px;
+        min-width: 90px;
+        max-width: 150px;
+        gap: 6px;
+        border-radius: 18px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      #tts-mini-window {
+        padding: 4px 6px;
+        min-width: 80px;
+        max-width: 130px;
+        gap: 5px;
+        border-radius: 16px;
+        min-height: 32px;
       }
     }
   `;
@@ -49,22 +82,29 @@ function createMiniWindow() {
     bottom: ${savedPosition.bottom || "20px"};
     right: ${savedPosition.right || "20px"};
     background: var(--tts-bg-primary);
-    padding: 8px 12px;
-    border-radius: 24px;
-    box-shadow: 0 4px 12px var(--tts-shadow);
+    padding: 4px 6px;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px var(--tts-shadow);
     display: none;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    font-family: system-ui, -apple-system, sans-serif;
+    gap: 4px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
     border: 1px solid var(--tts-border);
-    z-index: 999999;
+    z-index: 2147483647;
     cursor: move;
     user-select: none;
     -webkit-user-select: none;
     transform: ${savedPosition.transform || "none"};
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    min-height: 28px;
+    min-width: 75px;
+    max-width: 140px;
+    transition: all 0.2s ease;
+    will-change: transform;
+    contain: layout style paint;
+    isolation: isolate;
   `;
 
   // Add draggable functionality
@@ -79,72 +119,116 @@ function createMiniWindow() {
   function dragStart(e) {
     // Only start dragging if clicking on the container or logo (not buttons)
     if (e.target === container || e.target === logoContainer || e.target.closest('svg')) {
+      e.preventDefault();
+      e.stopPropagation();
+
       initialX = e.clientX - xOffset;
       initialY = e.clientY - yOffset;
       isDragging = true;
+
       container.style.cursor = "grabbing";
+      container.style.zIndex = "2147483647";
+      container.style.transition = "none"; // Disable transitions during drag
+      container.style.pointerEvents = "none"; // Prevent interference during drag
+
+      // Ensure smooth dragging
+      document.body.style.userSelect = "none";
+      document.body.style.webkitUserSelect = "none";
     }
   }
 
   function drag(e) {
     if (isDragging) {
       e.preventDefault();
+      e.stopPropagation();
+
       currentX = e.clientX - initialX;
       currentY = e.clientY - initialY;
       xOffset = currentX;
       yOffset = currentY;
 
-      const transform = `translate(${currentX}px, ${currentY}px)`;
-      container.style.transform = transform;
+      // Use requestAnimationFrame for smooth movement
+      requestAnimationFrame(() => {
+        const transform = `translate(${currentX}px, ${currentY}px)`;
+        container.style.transform = transform;
+      });
 
-      // Save position
-      try {
-        localStorage.setItem(
-          "tts-window-position",
-          JSON.stringify({
-            transform,
-            xOffset: currentX,
-            yOffset: currentY,
-          }),
-        );
-      } catch (e) {
-        console.error("Error saving position:", e);
+      // Throttled save position (only save every 100ms to improve performance)
+      if (!window.ttsPositionSaveTimeout) {
+        window.ttsPositionSaveTimeout = setTimeout(() => {
+          try {
+            localStorage.setItem(
+              "tts-window-position",
+              JSON.stringify({
+                transform: `translate(${currentX}px, ${currentY}px)`,
+                xOffset: currentX,
+                yOffset: currentY,
+              }),
+            );
+          } catch (e) {
+            console.error("Error saving position:", e);
+          }
+          window.ttsPositionSaveTimeout = null;
+        }, 100);
       }
     }
   }
 
   function dragEnd() {
-    isDragging = false;
-    container.style.cursor = "move";
-  }
+    if (isDragging) {
+      isDragging = false;
+      container.style.cursor = "move";
+      container.style.transition = "all 0.2s ease"; // Re-enable transitions
+      container.style.pointerEvents = "auto"; // Re-enable pointer events
 
-  container.addEventListener("mousedown", dragStart);
-  document.addEventListener("mousemove", drag);
-  document.addEventListener("mouseup", dragEnd);
+      // Restore body selection
+      document.body.style.userSelect = "";
+      document.body.style.webkitUserSelect = "";
+
+      // Force final position save
+      if (window.ttsPositionSaveTimeout) {
+        clearTimeout(window.ttsPositionSaveTimeout);
+        window.ttsPositionSaveTimeout = null;
+      }
+
+      try {
+        localStorage.setItem(
+          "tts-window-position",
+          JSON.stringify({
+            transform: `translate(${xOffset}px, ${yOffset}px)`,
+            xOffset: xOffset,
+            yOffset: yOffset,
+          }),
+        );
+      } catch (e) {
+        console.error("Error saving final position:", e);
+      }
+    }
+  }
 
   // Base style for all icons (uniform size and styling)
   const iconBaseStyle = `
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     user-select: none;
     -webkit-user-select: none;
+    position: relative;
   `;
 
   // Create the extension logo to identify what this widget is
   const logoContainer = document.createElement("div");
   logoContainer.style.cssText = iconBaseStyle;
 
-  // Extension logo SVG
+  // Extension logo SVG - exact match with extension icon but without background
   logoContainer.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <rect width="48" height="48" rx="8" fill="var(--tts-text-accent)"/>
-      <text x="24" y="32" font-family="Arial" font-size="32" fill="white" text-anchor="middle">T</text>
-      <path d="M14,16 L34,16" stroke="white" stroke-width="2"/>
-      <path d="M18,36 L30,36" stroke="white" stroke-width="2"/>
+    <svg width="14" height="14" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+      <text x="24" y="32" font-family="Arial" font-size="32" fill="var(--tts-text-accent)" text-anchor="middle">T</text>
+      <path d="M14,16 L34,16" stroke="var(--tts-text-accent)" stroke-width="2"/>
+      <path d="M18,36 L30,36" stroke="var(--tts-text-accent)" stroke-width="2"/>
     </svg>
   `;
   logoContainer.title = "Simple TTS";
@@ -157,12 +241,15 @@ function createMiniWindow() {
     background: transparent;
     cursor: pointer;
     border-radius: 50%;
-    transition: all 0.2s ease;
-    padding: 0;
+    transition: all 0.15s ease;
+    padding: 2px;
     color: var(--tts-text-primary);
+    outline: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   `;
   replayButton.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M8 5v14l11-7z" fill="currentColor"/>
     </svg>
   `;
@@ -172,33 +259,102 @@ function createMiniWindow() {
   const closeButton = document.createElement("button");
   closeButton.style.cssText = replayButton.style.cssText;
   closeButton.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   `;
   closeButton.title = "Close";
 
   // Add hover effects for buttons
   [replayButton, closeButton].forEach(button => {
-    button.addEventListener("mouseover", () => {
+    button.addEventListener("mouseenter", () => {
       if (!isDragging) {
         button.style.background = "var(--tts-bg-hover)";
         button.style.transform = "scale(1.1)";
       }
     });
-    button.addEventListener("mouseout", () => {
-      button.style.background = "transparent";
-      button.style.transform = "scale(1)";
+
+    button.addEventListener("mouseleave", () => {
+      if (!isDragging) {
+        button.style.background = "transparent";
+        button.style.transform = "scale(1)";
+      }
     });
+
     button.addEventListener("mousedown", (e) => {
       e.stopPropagation(); // Prevent dragging when clicking buttons
+      e.preventDefault();
+      if (!isDragging) {
+        button.style.transform = "scale(0.95)";
+      }
     });
+
+    button.addEventListener("mouseup", (e) => {
+      e.stopPropagation();
+      if (!isDragging) {
+        button.style.transform = "scale(1.1)";
+      }
+    });
+
+    // Touch support
+    button.addEventListener("touchstart", (e) => {
+      e.stopPropagation();
+      if (!isDragging) {
+        button.style.background = "var(--tts-bg-hover)";
+        button.style.transform = "scale(1.05)";
+      }
+    }, { passive: false });
+
+    button.addEventListener("touchend", (e) => {
+      e.stopPropagation();
+      if (!isDragging) {
+        setTimeout(() => {
+          button.style.background = "transparent";
+          button.style.transform = "scale(1)";
+        }, 100);
+      }
+    }, { passive: false });
   });
 
   // Assemble the widget
   container.appendChild(logoContainer);
   container.appendChild(replayButton);
   container.appendChild(closeButton);
+
+  // Add drag event listeners after all elements are created
+  container.addEventListener("mousedown", dragStart);
+  document.addEventListener("mousemove", drag);
+  document.addEventListener("mouseup", dragEnd);
+
+  // Touch drag support for mobile
+  container.addEventListener("touchstart", (e) => {
+    if (e.target === container || e.target === logoContainer || e.target.closest('svg')) {
+      const touch = e.touches[0];
+      const mouseEvent = new MouseEvent("mousedown", {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+      });
+      dragStart(mouseEvent);
+    }
+  }, { passive: false });
+
+  document.addEventListener("touchmove", (e) => {
+    if (isDragging) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const mouseEvent = new MouseEvent("mousemove", {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+      });
+      drag(mouseEvent);
+    }
+  }, { passive: false });
+
+  document.addEventListener("touchend", (e) => {
+    if (isDragging) {
+      dragEnd();
+    }
+  }, { passive: false });
 
   return {
     container,
@@ -208,21 +364,27 @@ function createMiniWindow() {
     updateStatus(isPlaying) {
       if (isPlaying) {
         replayButton.innerHTML = `
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="6" y="4" width="4" height="16" fill="currentColor"/>
-            <rect x="14" y="4" width="4" height="16" fill="currentColor"/>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/>
+            <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>
           </svg>
         `;
         replayButton.title = "Pause";
         container.style.background = "var(--tts-bg-secondary)";
+        container.style.boxShadow = "0 6px 20px var(--tts-shadow-active)";
+        container.style.borderColor = "var(--tts-text-accent)";
+        container.style.borderWidth = "1.5px";
       } else {
         replayButton.innerHTML = `
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M8 5v14l11-7z" fill="currentColor"/>
           </svg>
         `;
         replayButton.title = "Play/Replay";
         container.style.background = "var(--tts-bg-primary)";
+        container.style.boxShadow = "0 4px 16px var(--tts-shadow)";
+        container.style.borderColor = "var(--tts-border)";
+        container.style.borderWidth = "1px";
       }
     },
     updatePlayButton(isPlaying) {
@@ -233,6 +395,11 @@ function createMiniWindow() {
 
 // Initialize hidden audio player with proper state management
 function initAudioPlayer() {
+  // Prevent multiple initializations
+  if (window.ttsPlayer && document.getElementById("tts-hidden-player")) {
+    return;
+  }
+
   if (!document.getElementById("tts-hidden-player")) {
     const audio = document.createElement("audio");
     audio.id = "tts-hidden-player";
@@ -361,7 +528,9 @@ function initAudioPlayer() {
     window.ttsPlayer = {
       async play(url, rate = 1) {
         const audio = document.getElementById("tts-hidden-player");
-        if (!audio) return;
+        if (!audio) {
+          throw new Error("Audio element not found");
+        }
 
         try {
           // Stop any current playback
@@ -380,57 +549,75 @@ function initAudioPlayer() {
 
           // Show the mini window
           miniWindow.container.style.display = "flex";
-          
+
           // Update initial state (loading/ready state)
           updateButtonState();
 
           // Wait for audio to be ready and then play
           return new Promise((resolve, reject) => {
             let resolved = false;
-            
-            const playHandler = async () => {
-              if (resolved) return;
-              
-              try {
+            let playAttempted = false;
+
+            const cleanup = () => {
+              if (!resolved) {
                 audio.removeEventListener("canplay", playHandler);
+                audio.removeEventListener("canplaythrough", playHandler);
+                audio.removeEventListener("error", errorHandler);
+                audio.removeEventListener("loadeddata", dataHandler);
+                resolved = true;
+              }
+            };
+
+            const playHandler = async () => {
+              if (resolved || playAttempted) return;
+              playAttempted = true;
+
+              try {
                 await audio.play();
                 updateButtonState();
-                resolved = true;
+                cleanup();
                 resolve();
-              } catch (error) {
-                if (!resolved) {
-                  updateButtonState();
-                  resolved = true;
-                  reject(error);
-                }
+              } catch (playError) {
+                console.error('Play failed:', playError);
+                cleanup();
+                reject(new Error(`Playback failed: ${playError.message}`));
+              }
+            };
+
+            const dataHandler = () => {
+              // Try to play when we have loaded data
+              if (!playAttempted && audio.readyState >= 2) {
+                playHandler();
               }
             };
 
             const errorHandler = (error) => {
-              if (!resolved) {
-                audio.removeEventListener("canplay", playHandler);
-                updateButtonState();
-                resolved = true;
-                reject(error);
-              }
+              console.error('Audio loading error:', error);
+              const errorMsg = audio.error ?
+                `Media error (code: ${audio.error.code}): ${audio.error.message || 'Unknown error'}` :
+                'Audio loading failed';
+              cleanup();
+              reject(new Error(errorMsg));
             };
 
+            // Add multiple event listeners for better compatibility
             audio.addEventListener("canplay", playHandler, { once: true });
+            audio.addEventListener("canplaythrough", playHandler, { once: true });
+            audio.addEventListener("loadeddata", dataHandler);
             audio.addEventListener("error", errorHandler, { once: true });
-            
+
             // Fallback timeout
             setTimeout(() => {
               if (!resolved) {
-                audio.removeEventListener("canplay", playHandler);
-                audio.removeEventListener("error", errorHandler);
-                resolved = true;
-                reject(new Error('Audio load timeout'));
+                cleanup();
+                reject(new Error('Audio load timeout after 15 seconds'));
               }
-            }, 10000);
+            }, 15000);
           });
-          
+
         } catch (error) {
           updateButtonState();
+          console.error('TTS Player error:', error);
           throw error;
         }
       },
@@ -461,13 +648,18 @@ function initAudioPlayer() {
 }
 
 // Initialize player when page loads
+console.log("Simple TTS content script loaded");
 initAudioPlayer();
+console.log("TTS audio player initialized");
 
 // Listen for messages from background script
 browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) => {
+  console.log("Content script received message:", request);
+
   try {
     switch (request.type) {
       case "STOP_AUDIO": {
+        console.log("Stopping audio...");
         window.ttsPlayer?.stop();
         const container = document.getElementById("tts-mini-window");
         if (container) container.style.display = "none";
@@ -475,12 +667,57 @@ browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) =>
       }
 
       case "PLAY_AUDIO": {
-        if (!window.ttsPlayer) {
-          initAudioPlayer();
+        console.log("Processing PLAY_AUDIO message...");
+        try {
+          // Ensure audio player is initialized
+          if (!window.ttsPlayer) {
+            console.log("Audio player not found, initializing...");
+            initAudioPlayer();
+            // Wait a bit for initialization to complete
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+
+          if (!window.ttsPlayer) {
+            throw new Error("Failed to initialize audio player");
+          }
+
+          // Validate request parameters
+          if (!request.url) {
+            throw new Error("No audio URL provided");
+          }
+
+          const miniWindow = document.getElementById("tts-mini-window");
+          if (miniWindow) {
+            miniWindow.style.display = "flex";
+          } else {
+            console.warn("Mini window not found, reinitializing...");
+            initAudioPlayer();
+            const newMiniWindow = document.getElementById("tts-mini-window");
+            if (newMiniWindow) newMiniWindow.style.display = "flex";
+          }
+
+          // Add timeout for play operation
+          const playPromise = window.ttsPlayer.play(request.url, request.rate || 1);
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Play operation timeout')), 30000);
+          });
+
+          await Promise.race([playPromise, timeoutPromise]);
+          console.log("Audio playback started successfully");
+          return { success: true };
+
+        } catch (playError) {
+          console.error("PLAY_AUDIO error:", playError);
+
+          // Try to hide mini window on error
+          const miniWindow = document.getElementById("tts-mini-window");
+          if (miniWindow) {
+            miniWindow.style.display = "none";
+          }
+
+          // Return error info
+          return { success: false, error: playError.message };
         }
-        const miniWindow = document.getElementById("tts-mini-window");
-        if (miniWindow) miniWindow.style.display = "flex";
-        await window.ttsPlayer.play(request.url, request.rate);
         break;
       }
     }

@@ -284,13 +284,4 @@ describe('TTSService', () => {
     });
   });
 
-  describe('splitIntoSentences', () => {
-    test('should delegate to textProcessor', () => {
-      const text = 'First sentence. Second sentence.';
-      const sentences = ttsService.splitIntoSentences(text);
-
-      expect(Array.isArray(sentences)).toBe(true);
-      expect(sentences.length).toBeGreaterThan(0);
-    });
-  });
 });

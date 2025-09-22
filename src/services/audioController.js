@@ -12,58 +12,63 @@ export class AudioController {
     await this.audioPlayer.stopAudio();
   }
 
-  async synthesizeSequential(text, userSettings = {}) {
+  async synthesizeSequential(text, userSettings = {}, onProgress = null) {
     const finalSettings = await this.ttsService.getVoiceSettings(text, userSettings);
-    const segments = this.textProcessor.segmentByPunctuation(text);
-    const audioSegments = [];
+    const opusBlob = await this.ttsService.synthesizeSingleChunk(text, finalSettings, onProgress);
 
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
-      const mp3Blob = await this.ttsService.synthesizeSingleChunk(segment.text, finalSettings);
+    return [{
+      order: 0,
+      blob: opusBlob,
+      text: text,
+      type: 'complete'
+    }];
+  }
 
-      audioSegments.push({
-        order: segment.order,
-        blob: mp3Blob,
-        text: segment.text,
-        type: segment.type
-      });
+  async synthesizeParallel(text, userSettings = {}, onProgress = null) {
+    const finalSettings = await this.ttsService.getVoiceSettings(text, userSettings);
+    const opusBlob = await this.ttsService.synthesizeSingleChunk(text, finalSettings, onProgress);
 
-      if (i < segments.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+    return [{
+      order: 0,
+      blob: opusBlob
+    }];
+  }
+
+  async playTextSequential(text, userSettings = {}, onProgress = null) {
+    await this.audioPlayer.stopAudio();
+
+    // Create progress callback for faster feedback
+    const progressCallback = onProgress ? (progress) => {
+      onProgress({ ...progress, stage: 'synthesizing' });
+    } : null;
+
+    const audioSegments = await this.synthesizeSequential(text, userSettings, progressCallback);
+    const finalSettings = await this.ttsService.getVoiceSettings(text, userSettings);
+
+    if (onProgress) onProgress({ stage: 'playing', progress: 100 });
+
+    // Use streaming playback for faster response
+    if (audioSegments.length === 1) {
+      await this.audioPlayer.playStreamingAudio(audioSegments[0].blob, finalSettings.rate, onProgress);
+    } else {
+      await this.audioPlayer.playAudioSegmentsInOrder(audioSegments, finalSettings.rate);
     }
-
-    return audioSegments;
   }
 
-  async synthesizeParallel(text, userSettings = {}) {
-    const finalSettings = await this.ttsService.getVoiceSettings(text, userSettings);
-    const chunks = this.textProcessor.splitIntoChunks(text);
-
-    const synthesisTasks = chunks.map(async (chunk) => {
-      const mp3Blob = await this.ttsService.synthesizeSingleChunk(chunk.text, finalSettings);
-      return {
-        order: chunk.order,
-        blob: mp3Blob
-      };
-    });
-
-    const results = await Promise.all(synthesisTasks);
-    return results.sort((a, b) => a.order - b.order);
-  }
-
-  async playTextSequential(text, userSettings = {}) {
+  async playTextParallel(text, userSettings = {}, onProgress = null) {
     await this.audioPlayer.stopAudio();
-    const audioSegments = await this.synthesizeSequential(text, userSettings);
-    const finalSettings = await this.ttsService.getVoiceSettings(text, userSettings);
-    await this.audioPlayer.playAudioSegmentsInOrder(audioSegments, finalSettings.rate);
-  }
 
-  async playTextParallel(text, userSettings = {}) {
-    await this.audioPlayer.stopAudio();
-    const mp3Chunks = await this.synthesizeParallel(text, userSettings);
-    const concatenatedAudioBuffer = await this.audioPlayer.concatenateMP3Chunks(mp3Chunks);
+    const progressCallback = onProgress ? (progress) => {
+      onProgress({ ...progress, stage: 'synthesizing' });
+    } : null;
+
+    const opusChunks = await this.synthesizeParallel(text, userSettings, progressCallback);
+
+    if (onProgress) onProgress({ stage: 'processing', progress: 90 });
+    const concatenatedAudioBuffer = await this.audioPlayer.concatenateAudioChunks(opusChunks);
     const finalSettings = await this.ttsService.getVoiceSettings(text, userSettings);
+
+    if (onProgress) onProgress({ stage: 'playing', progress: 100 });
     await this.audioPlayer.playAudioBuffer(concatenatedAudioBuffer, finalSettings.rate);
   }
 
@@ -79,22 +84,16 @@ export class AudioController {
     return await this.synthesizeSequential(text, userSettings);
   }
 
-  async synthesizeSpeech(text, userSettings = {}) {
+  async synthesizeSpeech(text, userSettings = {}, onProgress = null) {
     const finalSettings = await this.ttsService.getVoiceSettings(text, userSettings);
-    const sentences = this.textProcessor.splitIntoChunks(text).map(chunk => chunk.text);
-
     await this.audioPlayer.stopAudio();
 
-    const audioBlobs = await Promise.all(
-      sentences.map((sentence) =>
-        this.ttsService.synthesizeSingleChunk(sentence, finalSettings),
-      ),
-    );
+    const audioBlob = await this.ttsService.synthesizeSingleChunk(text, finalSettings, onProgress);
 
-    if (!audioBlobs.every((blob) => blob instanceof Blob)) {
-      throw new Error("Failed to synthesize one or more audio chunks");
+    if (!(audioBlob instanceof Blob)) {
+      throw new Error("Failed to synthesize audio");
     }
 
-    return audioBlobs;
+    return [audioBlob];
   }
 }
