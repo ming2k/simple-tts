@@ -3,7 +3,7 @@ import { Container } from "./components/StyledComponents";
 import { ProgressBar } from "./components/ProgressBar";
 import { RenderSteps } from "./components/RenderSteps";
 import { NavigationButtons } from "./components/NavigationButtons";
-import { TTSService } from "../services/ttsService";
+import { SimpleTTS } from "../services/index.js";
 import { getAzureCredentials } from "../utils/azureConfig";
 
 const TOTAL_STEPS = 3;
@@ -51,7 +51,7 @@ export function Onboarding() {
     setError("");
 
     try {
-      const ttsService = new TTSService(key, region);
+      const ttsService = new SimpleTTS(key, region);
       await ttsService.getVoicesList();
       return true;
     } catch (err) {

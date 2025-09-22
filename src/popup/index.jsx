@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { TTSService } from "../services/ttsService.js";
+import { SimpleTTS } from "../services/index.js";
 import { Header } from "./components/Header";
 import { TextInput } from "./components/TextInput";
 import { ControlDashboard } from "./components/ControlDashboard.jsx";
@@ -60,10 +60,10 @@ function Popup() {
         );
       }
 
-      const tts = new TTSService(settings.azureKey, settings.azureRegion);
+      const tts = new SimpleTTS(settings.azureKey, settings.azureRegion);
       
       // Use sequential processing with line break support
-      await tts.playTextWithSequentialProcessing(text, {
+      await tts.playTextSequential(text, {
         voice: settings.voice,
         rate: settings.rate,
         pitch: settings.pitch,

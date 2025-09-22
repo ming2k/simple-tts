@@ -2,7 +2,7 @@
   "name": "simple-tts",
   "version": "1.0.0",
   "type": "module",
-  "description": "A powerful browser extension for text-to-speech using Azure's premium neural voices",
+  "description": "A simple browser extension for text-to-speech using Azure's API.",
   "scripts": {
     "dev": "cross-env BROWSERS=firefox,chrome webpack --watch --config webpack.config.dev.js",
     "dev:firefox": "cross-env BROWSERS=firefox webpack --watch --config webpack.config.dev.js",
@@ -20,7 +20,10 @@
     "zip:firefox": "cd dist/firefox && zip -r ../../simple-tts-firefox.zip .",
     "package": "npm run build && npm run zip",
     "package:chrome": "npm run build:chrome && npm run zip:chrome",
-    "package:firefox": "npm run build:firefox && npm run zip:firefox"
+    "package:firefox": "npm run build:firefox && npm run zip:firefox",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "loglevel": "^1.9.2",
@@ -47,6 +50,8 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^16.3.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
     "prettier": "^3.2.5",
     "style-loader": "^3.3.3",
     "terser-webpack-plugin": "^5.3.10",

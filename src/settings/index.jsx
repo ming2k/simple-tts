@@ -11,7 +11,7 @@ import { Document } from "./components/tabs/Document";
 import { Sponsor } from "./components/tabs/Sponsor";
 import { About } from "./components/tabs/About";
 import "./settings.css";
-import { TTSService } from "../services/ttsService";
+import { SimpleTTS } from "../services/index.js";
 import { VoiceSettings } from "./components/tabs/VoiceSettings";
 
 function Settings() {
@@ -57,7 +57,7 @@ function Settings() {
   // Add a new function to fetch voices
   const fetchVoices = async (currentSettings) => {
     try {
-      const ttsService = new TTSService(
+      const ttsService = new SimpleTTS(
         currentSettings.azureKey,
         currentSettings.azureRegion,
       );

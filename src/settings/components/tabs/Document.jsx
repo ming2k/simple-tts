@@ -7,13 +7,13 @@ const DocSection = styled.div`
 `;
 
 const StepTitle = styled.h3`
-  color: #2563eb;
+  color: var(--text-accent);
   font-size: 1.2rem;
   margin-bottom: 1rem;
 `;
 
 const StepContent = styled.div`
-  color: #4b5563;
+  color: var(--text-primary);
   line-height: 1.6;
 
   ul {
@@ -26,7 +26,7 @@ const StepContent = styled.div`
   }
 
   a {
-    color: #2563eb;
+    color: var(--text-accent);
     text-decoration: none;
     &:hover {
       text-decoration: underline;
@@ -37,21 +37,21 @@ const StepContent = styled.div`
 const ImageContainer = styled.div`
   margin: 1.5rem 0;
   padding: 1rem;
-  background: #f8f9fa;
+  background: var(--bg-hover);
   border-radius: 8px;
 `;
 
 const InfoImage = styled.img`
   width: 100%;
   border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px var(--shadow-primary);
 `;
 
 const KeyNote = styled.div`
   margin-top: 1rem;
   padding: 1rem;
-  background: #f0f9ff;
-  border-left: 4px solid #2563eb;
+  background: var(--bg-hover);
+  border-left: 4px solid var(--text-accent);
   border-radius: 4px;
 `;
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Section, InputGroup, SaveButton } from '../common';
-import { TTSService } from '../../../services/ttsService';
+import { SimpleTTS } from '../../../services/index.js';
 
 // Icons
 const EyeIcon = ({ isVisible }) => (
@@ -227,7 +227,7 @@ export function ApiSettings({ settings, onChange, onSave, isSaving }) {
       setValidationMessage('Validating credentials...');
       setValidationError(null);
 
-      const ttsService = new TTSService(credentials.azureKey, credentials.azureRegion);
+      const ttsService = new SimpleTTS(credentials.azureKey, credentials.azureRegion);
       await ttsService.getVoicesList(); // This will throw if credentials are invalid
 
       setValidationMessage('Credentials validated successfully');

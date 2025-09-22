@@ -1,5 +1,5 @@
 import browser from "webextension-polyfill";
-import { TTSService } from "../services/ttsService.js";
+import { SimpleTTS } from "../services/index.js";
 
 // Separate function to create context menu
 async function createContextMenu() {
@@ -87,7 +87,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         return;
       }
 
-      const ttsService = new TTSService(
+      const ttsService = new SimpleTTS(
         settings.azureKey,
         settings.azureRegion,
       );

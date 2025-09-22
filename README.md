@@ -62,227 +62,35 @@ Simple TTS uses Microsoft Azure's speech synthesis service for the highest quali
 
 ## Development
 
-### Prerequisites
-- **Node.js** v18+ ([Download](https://nodejs.org/))
-- **npm** v9+ (comes with Node.js)
+### Architecture Overview
 
-For Azure TTS of Speech Service documentation refer these:
-- [Text to speech REST API](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech?tabs=streaming)
+Simple TTS uses a modular, clean architecture with separated concerns:
 
-### Quick Development Setup
+```
+src/services/
+├── ttsService.js        # Azure API integration, token management, SSML generation
+├── audioController.js   # Audio orchestration, synthesis workflows
+├── audioPlayer.js       # Web Audio API management, playback controls
+├── textProcessor.js     # Text chunking, segmentation, XML escaping
+└── index.js            # Main SimpleTTS facade interface
+```
 
+### Key Features
+- **Bearer Token Authentication**: Uses Azure STS v1.0 for secure API access
+- **PCM Audio Format**: High-quality `riff-24khz-16bit-mono-pcm` output
+- **Sequential & Parallel Processing**: Choose optimal synthesis strategy
+- **Comprehensive Testing**: 63+ unit tests covering all components
+
+### Quick Setup
 ```bash
-# Install dependencies
-npm install
-
-# Set up environment variables
-cp .env.example .env  # Edit with your Azure credentials
-
-# Development build with hot reload
-npm run dev           # Both Firefox and Chrome
-npm run dev:firefox   # Firefox only
-npm run dev:chrome    # Chrome only
+npm install          # Install dependencies
+npm run dev:firefox  # Development build for Firefox
+npm run dev:chrome   # Development build for Chrome
+npm test            # Run unit tests
+npm run lint        # Code linting
 ```
 
-### Available Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Development build with watch mode for both browsers |
-| `npm run build` | Production build for both browsers |
-| `npm run lint` | Run ESLint code quality checks |
-| `npm run format` | Format code with Prettier |
-| `npm run package` | Build and create ZIP files for distribution |
-| `npm run clean` | Remove all build directories |
-
-### Project Architecture
-
-```
-simple-tts/
-├── src/
-│   ├── popup/              # Extension popup interface
-│   ├── settings/           # Settings and configuration pages
-│   ├── onboarding/         # First-time setup wizard
-│   ├── background/         # Background scripts and context menu
-│   ├── content/            # Content scripts for web page integration
-│   ├── services/           # TTS service and API integration
-│   ├── utils/              # Utility functions and helpers
-│   ├── assets/             # Icons, images, and static files
-│   └── _locales/           # Internationalization files
-├── webpack.*.js            # Build configuration
-├── CLAUDE.md               # Development guide for AI assistants
-└── package.json            # Dependencies and scripts
-```
-
-### Environment Configuration
-
-Create a `.env` file for development:
-```bash
-# Azure Speech Service Configuration
-AZURE_SPEECH_KEY=your_speech_service_key
-AZURE_REGION=your_azure_region  # e.g., eastus, westus2
-```
-
-### Build Outputs
-- **Development**: `dev/firefox/` and `dev/chrome/`
-- **Production**: `dist/firefox/` and `dist/chrome/`
-- **Packages**: `simple-tts-firefox.zip` and `simple-tts-chrome.zip`
-
-### Firefox Development & Debugging
-
-#### Loading the Extension in Firefox
-
-1. **Build the development version**:
-   ```bash
-   npm run dev:firefox
-   ```
-
-2. **Open Firefox Developer Tools**:
-   - Navigate to `about:debugging` in Firefox
-   - Click "This Firefox" in the sidebar
-   - Click "Load Temporary Add-on"
-
-3. **Load the extension**:
-   - Navigate to the `dev/firefox/` directory
-   - Select the `manifest.json` file
-   - The extension will be loaded and appear in the list
-
-#### Debugging Tools & Techniques
-
-##### Background Script Debugging
-1. **Access Background Script Console**:
-   - Go to `about:debugging`
-   - Find your extension in the list
-   - Click "Inspect" next to your extension
-   - This opens the background script's dedicated console
-
-2. **View Background Script Logs**:
-   ```javascript
-   // Use these in your background scripts for debugging
-   console.log('Debug message');
-   console.error('Error message');
-   ```
-
-##### Popup Debugging
-1. **Inspect Popup**:
-   - Right-click on the extension icon in the toolbar
-   - Select "Inspect Element" or press `Ctrl+Shift+I`
-   - The popup's DevTools will open in a separate window
-
-2. **Persistent Popup for Debugging**:
-   - Open popup DevTools
-   - In the console, run: `document.documentElement.style.display = 'block'`
-   - This keeps the popup open while debugging
-
-##### Content Script Debugging
-1. **Debug on Web Pages**:
-   - Open any webpage where content scripts run
-   - Press `F12` to open DevTools
-   - Content script logs appear in the page's console
-   - Look for your extension's messages in the Console tab
-
-##### Settings Page Debugging
-1. **Debug Settings Page**:
-   - Go to `about:addons`
-   - Find Simple TTS and click "Preferences" or the gear icon
-   - Right-click on the settings page and select "Inspect Element"
-
-#### Hot Reload Development
-
-The development build includes automatic reloading:
-
-1. **Start development mode**:
-   ```bash
-   npm run dev:firefox
-   ```
-
-2. **Make changes to your code** - the extension will automatically rebuild
-
-3. **Reload the extension**:
-   - Go to `about:debugging`
-   - Click "Reload" button next to your extension
-   - Or use the keyboard shortcut: `Ctrl+R` in the extension's context
-
-#### Common Firefox Debugging Scenarios
-
-##### Debugging Permission Issues
-```javascript
-// Check if permissions are granted
-browser.permissions.contains({permissions: ['activeTab']})
-  .then(hasPermission => console.log('Has activeTab permission:', hasPermission));
-```
-
-##### Debugging Storage Issues
-```javascript
-// Check extension storage
-browser.storage.local.get().then(items => {
-  console.log('All stored items:', items);
-});
-```
-
-##### Debugging Message Passing
-```javascript
-// In background script - listen for messages
-browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('Received message:', message);
-  console.log('From:', sender);
-  return true; // Important: return true for async responses
-});
-
-// In content script - send messages
-browser.runtime.sendMessage({action: 'test'})
-  .then(response => console.log('Response:', response))
-  .catch(error => console.error('Message error:', error));
-```
-
-#### Troubleshooting Common Issues
-
-##### Extension Not Loading
-- Check `manifest.json` syntax with a JSON validator
-- Verify all file paths in manifest are correct
-- Check browser console for detailed error messages
-- Ensure all required permissions are declared
-
-##### Background Script Errors
-- Check the background script console in `about:debugging`
-- Verify service worker compatibility (use persistent background pages for MV2)
-- Check for async/await usage with proper error handling
-
-##### Content Script Not Injecting
-```javascript
-// Debug content script injection
-browser.tabs.executeScript({
-  code: 'console.log("Content script test");'
-}).catch(error => console.error('Injection failed:', error));
-```
-
-##### TTS Not Working
-- Check Azure credentials in extension storage
-- Verify network connectivity to Azure services
-- Check for CORS issues in the browser console
-- Test with different voice/language combinations
-
-#### Firefox-Specific Considerations
-
-##### Manifest V2 vs V3
-- Firefox currently uses Manifest V2
-- Use `background.scripts` instead of `background.service_worker`
-- Use `browser` API instead of `chrome` API (or include polyfill)
-
-##### Firefox Extension APIs
-```javascript
-// Use Firefox's native browser API
-browser.contextMenus.create({
-  id: "speak-selection",
-  title: "Speak selected text",
-  contexts: ["selection"]
-});
-```
-
-##### Performance Monitoring
-- Use Firefox's built-in profiler: `about:profiling`
-- Monitor memory usage in `about:memory`
-- Check extension impact in `about:performance`
+For detailed development setup, debugging guides, and architecture documentation, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Privacy & Security
 
@@ -299,44 +107,7 @@ Your text is sent to Azure's Speech Service for conversion but is not stored or 
 
 ## Contributing
 
-We welcome contributions! Here's how you can help:
-
-### Areas Needing Help
-- **Chrome Web Store Publishing**: Help package and publish to Chrome Web Store
-- **Internationalization**: Translate the extension to more languages  
-- **UI/UX Improvements**: Enhance the user interface and experience
-- **Documentation**: Improve docs, add tutorials, create videos
-- **Bug Reports**: Test and report issues
-- **Feature Requests**: Suggest and implement new features
-
-### Development Workflow
-
-1. **Fork** the repository
-2. **Create** a feature branch: `git checkout -b feature/amazing-feature`
-3. **Code** your changes following the existing style
-4. **Test** your changes: `npm run build && npm run lint`
-5. **Commit** with a clear message: `git commit -m 'Add amazing feature'`
-6. **Push** to your fork: `git push origin feature/amazing-feature`
-7. **Open** a Pull Request
-
-### Reporting Issues
-
-Found a bug? Please [open an issue](https://github.com/mingsterism/simple-tts/issues) with:
-- Browser version and extension version
-- Steps to reproduce the issue
-- Expected vs actual behavior
-- Console errors (if any)
-
-## Roadmap
-
-- [ ] Chrome Web Store publication
-- [ ] Keyboard shortcuts for quick access
-- [ ] SSML support for advanced speech control
-- [ ] Voice bookmarking and favorites
-- [ ] Offline TTS support (Web Speech API fallback)
-- [ ] Reading progress highlighting
-- [ ] Multiple language auto-detection
-- [ ] Export audio files
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on how to contribute, report issues, and set up your development environment.
 
 ## Acknowledgments
 
