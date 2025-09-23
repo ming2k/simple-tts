@@ -1,12 +1,14 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "3.1.3",
+  "version": "4.0.0",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
   "icons": {
-    "48": "assets/icons/icon-48.svg",
-    "96": "assets/icons/icon-96.svg"
+    "16": "assets/icons/icon-48.png",
+    "32": "assets/icons/icon-48.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-96.png"
   },
   "permissions": [
     "storage",
@@ -20,12 +22,31 @@
   ],
   "action": {
     "default_icon": {
-      "48": "assets/icons/icon-48.svg"
+      "16": "assets/icons/icon-48.png",
+      "32": "assets/icons/icon-48.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-96.png"
     },
     "default_popup": "popup.html",
     "default_title": "__MSG_extName__"
   },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/icons/*.png",
+        "assets/icons/*.svg"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
 } 

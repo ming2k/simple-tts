@@ -283,7 +283,7 @@ function createMiniWindow() {
 
     button.addEventListener("mousedown", (e) => {
       e.stopPropagation(); // Prevent dragging when clicking buttons
-      e.preventDefault();
+      // Don't prevent default as it can interfere with click events
       if (!isDragging) {
         button.style.transform = "scale(0.95)";
       }
@@ -350,7 +350,7 @@ function createMiniWindow() {
     }
   }, { passive: false });
 
-  document.addEventListener("touchend", (e) => {
+  document.addEventListener("touchend", (_e) => {
     if (isDragging) {
       dragEnd();
     }
@@ -471,58 +471,69 @@ function initAudioPlayer() {
     document.body.appendChild(miniWindow.container);
 
     // Add replay button event listener with improved logic
-    miniWindow.replayButton.onclick = async (e) => {
+    miniWindow.replayButton.addEventListener('click', async (e) => {
       e.stopPropagation();
-      
+      e.preventDefault();
+
+      console.log('Replay button clicked'); // Debug log
+
       try {
         const currentlyPlaying = getActualPlayingState();
-        
+        console.log('Currently playing:', currentlyPlaying); // Debug log
+
         if (currentlyPlaying) {
           // Currently playing - pause it
+          console.log('Pausing audio');
           audio.pause();
         } else {
           // Not playing - start or resume playback
           if (audio.src) {
+            console.log('Resuming/restarting audio');
             // If audio has ended, reset to beginning
             if (audio.ended) {
               audio.currentTime = 0;
             }
-            
+
             // Attempt to play
             await audio.play();
+          } else {
+            console.log('No audio source available');
           }
         }
-        
+
         // Update button state after action
         updateButtonState();
-        
+
       } catch (error) {
         console.error('Audio control failed:', error);
         updateButtonState(); // Ensure button reflects actual state
       }
-    };
+    });
 
     // Add close button event listener
-    miniWindow.closeButton.onclick = (e) => {
+    miniWindow.closeButton.addEventListener('click', (e) => {
       e.stopPropagation();
-      
+      e.preventDefault();
+
+      console.log('Close button clicked'); // Debug log
+
       // Stop playback and clean up
       audio.pause();
       audio.currentTime = 0;
-      
+
       // Hide the mini window
       miniWindow.container.style.display = "none";
-      
+
       // Clean up URL and audio source
       if (currentAudioUrl) {
         URL.revokeObjectURL(currentAudioUrl);
         currentAudioUrl = null;
       }
       audio.src = "";
-      
+
       // Update button state
       updateButtonState();
-    };
+    });
 
     // Add global control functions with proper state management
     window.ttsPlayer = {
@@ -668,6 +679,7 @@ browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) =>
 
       case "PLAY_AUDIO": {
         console.log("Processing PLAY_AUDIO message...");
+        let audioUrl;
         try {
           // Ensure audio player is initialized
           if (!window.ttsPlayer) {
@@ -681,9 +693,17 @@ browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) =>
             throw new Error("Failed to initialize audio player");
           }
 
-          // Validate request parameters
-          if (!request.url) {
-            throw new Error("No audio URL provided");
+          // Validate request parameters and handle different formats
+          if (request.audioData) {
+            // New format: convert array back to blob and create URL
+            const uint8Array = new Uint8Array(request.audioData);
+            const blob = new Blob([uint8Array], { type: request.mimeType || "audio/mpeg" });
+            audioUrl = URL.createObjectURL(blob);
+          } else if (request.url) {
+            // Legacy format: use provided URL
+            audioUrl = request.url;
+          } else {
+            throw new Error("No audio data or URL provided");
           }
 
           const miniWindow = document.getElementById("tts-mini-window");
@@ -697,17 +717,35 @@ browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) =>
           }
 
           // Add timeout for play operation
-          const playPromise = window.ttsPlayer.play(request.url, request.rate || 1);
+          const playPromise = window.ttsPlayer.play(audioUrl, request.rate || 1);
           const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error('Play operation timeout')), 30000);
           });
 
           await Promise.race([playPromise, timeoutPromise]);
           console.log("Audio playback started successfully");
+
+          // Clean up object URL if we created it
+          if (request.audioData && audioUrl) {
+            // Clean up after a delay to allow playback to start
+            setTimeout(() => {
+              URL.revokeObjectURL(audioUrl);
+            }, 1000);
+          }
+
           return { success: true };
 
         } catch (playError) {
           console.error("PLAY_AUDIO error:", playError);
+
+          // Clean up object URL if we created it
+          if (request.audioData && audioUrl) {
+            try {
+              URL.revokeObjectURL(audioUrl);
+            } catch (e) {
+              console.log("Failed to revoke object URL:", e);
+            }
+          }
 
           // Try to hide mini window on error
           const miniWindow = document.getElementById("tts-mini-window");
@@ -718,7 +756,6 @@ browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) =>
           // Return error info
           return { success: false, error: playError.message };
         }
-        break;
       }
     }
     return true;

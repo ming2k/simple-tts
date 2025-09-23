@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Title, Description, ErrorMessage } from '../StyledComponents';
 import { Eye, EyeOff } from 'react-feather';
+import browser from 'webextension-polyfill';
 
 const InputGroup = styled.div`
   margin-bottom: 1.5rem;

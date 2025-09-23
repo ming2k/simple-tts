@@ -40,7 +40,8 @@ export class TTSService {
         method: 'POST',
         headers: {
           'Ocp-Apim-Subscription-Key': this.azureKey,
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Connection': 'keep-alive'
         }
       });
 
@@ -118,7 +119,8 @@ export class TTSService {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/ssml+xml',
           'X-Microsoft-OutputFormat': audioFormat,
-          'User-Agent': 'TTS-Browser-Extension'
+          'User-Agent': 'TTS-Browser-Extension',
+          'Connection': 'keep-alive'
         },
         body: ssml
       });
@@ -205,7 +207,7 @@ export class TTSService {
   }
 
   async getVoiceSettings(text, userSettings = {}) {
-    const { settings, languageVoiceSettings } = await this.getSettings();
+    const { languageVoiceSettings } = await this.getSettings();
 
     let languageSettings;
     if (languageVoiceSettings && languageVoiceSettings['default']) {
@@ -236,6 +238,7 @@ export class TTSService {
         headers: {
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
+          "Connection": "keep-alive",
         },
       },
     );

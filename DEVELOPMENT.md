@@ -4,6 +4,8 @@ This guide provides comprehensive instructions for setting up the development en
 
 For Azure TTS of Speech Service documentation refer these:
 - [Text to speech REST API](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech)
+https://learn.microsoft.com/en-us/azure/ai-services/speech-service/get-started-text-to-speech?tabs=linux&pivots=programming-language-rest
+
 
 ## Quick Development Setup
 

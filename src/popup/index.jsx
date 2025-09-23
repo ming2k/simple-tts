@@ -6,6 +6,7 @@ import { TextInput } from "./components/TextInput";
 import { ControlDashboard } from "./components/ControlDashboard.jsx";
 import { Status } from "./components/Status";
 import { SetupNeeded } from "./components/SetupNeeded";
+import browser from 'webextension-polyfill';
 import "./popup.css";
 
 function Popup() {

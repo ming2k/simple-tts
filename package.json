@@ -1,6 +1,6 @@
 {
   "name": "simple-tts",
-  "version": "1.0.0",
+  "version": "4.0.0",
   "type": "module",
   "description": "A simple browser extension for text-to-speech using Azure's API.",
   "scripts": {

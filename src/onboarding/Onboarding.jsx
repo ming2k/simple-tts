@@ -5,6 +5,7 @@ import { RenderSteps } from "./components/RenderSteps";
 import { NavigationButtons } from "./components/NavigationButtons";
 import { SimpleTTS } from "../services/index.js";
 import { getAzureCredentials } from "../utils/azureConfig";
+import browser from 'webextension-polyfill';
 
 const TOTAL_STEPS = 3;
 

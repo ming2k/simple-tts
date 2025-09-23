@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Section, InputGroup, SaveButton } from '../common';
+import { Section, SaveButton } from '../common';
 import styled from 'styled-components';
 import browser from 'webextension-polyfill';
 import { SimpleTTS } from '../../../services/index.js';
@@ -211,12 +211,10 @@ const TestButton = styled.button`
 `;
 
 export function AudioSettings({
-  settings,
   groupedVoices,
   onSave,
   isSaving,
-  voicesError,
-  onFetchVoices
+  voicesError
 }) {
   const [voiceSettings, setVoiceSettings] = useState({
     voice: 'en-US-JennyNeural',

@@ -44,18 +44,32 @@ browser.runtime.onInstalled.addListener(async (details) => {
 
     // Set badge to indicate setup needed if no Azure credentials
     if (!defaultSettings.azureKey || !defaultSettings.azureRegion) {
-      browser.browserAction.setBadgeText({ text: "!" });
-      browser.browserAction.setBadgeBackgroundColor({ color: "#F59E0B" });
+      try {
+        // Use the appropriate API for the browser version
+        const actionAPI = browser.action || browser.browserAction;
+        if (actionAPI) {
+          actionAPI.setBadgeText({ text: "!" });
+          actionAPI.setBadgeBackgroundColor({ color: "#F59E0B" });
+        }
+      } catch (error) {
+        console.log("Could not set badge:", error.message);
+      }
     }
 
-    // Check if we're in development mode
-    if (
+    // Always show onboarding for new installations
+    // Only skip if we have pre-configured credentials (development builds)
+    const isDevelopmentWithCreds = (
+      typeof process !== 'undefined' &&
+      process.env &&
       process.env.NODE_ENV === "development" &&
       defaultSettings.azureKey &&
       defaultSettings.azureRegion
-    ) {
+    );
+
+    if (isDevelopmentWithCreds) {
       await browser.storage.local.set({ onboardingCompleted: true });
     } else {
+      // Always show onboarding for production builds and new users
       browser.tabs.create({
         url: browser.runtime.getURL("onboarding.html"),
       });
@@ -96,7 +110,13 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
       );
       
       // Stop any currently playing audio first
-      await browser.tabs.sendMessage(tab.id, { type: "STOP_AUDIO" });
+      try {
+        await browser.tabs.sendMessage(tab.id, { type: "STOP_AUDIO" });
+      } catch (err) {
+        console.log("Could not send STOP_AUDIO message to tab:", err.message);
+        // Try to inject content script if it's not loaded
+        await ensureContentScriptLoaded(tab.id);
+      }
       
       // Use simplified synthesis for context menu
       const audioSegments = await ttsService.synthesizeSpeech(info.selectionText, {
@@ -119,26 +139,40 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         // New simplified format - direct blob array
         combinedBlob = audioSegments.length === 1 ? audioSegments[0] : new Blob(audioSegments, { type: "audio/mpeg" });
       }
-      const audioUrl = URL.createObjectURL(combinedBlob);
+      // Convert blob to array buffer for sending to content script
+      const arrayBuffer = await combinedBlob.arrayBuffer();
 
       // Play using the injected player through messaging
       console.log("Sending PLAY_AUDIO message to tab:", tab.id);
       try {
         const response = await browser.tabs.sendMessage(tab.id, {
           type: "PLAY_AUDIO",
-          url: audioUrl,
+          audioData: Array.from(new Uint8Array(arrayBuffer)),
+          mimeType: combinedBlob.type || "audio/mpeg",
           rate: settings.rate || 1,
         });
         console.log("PLAY_AUDIO response:", response);
       } catch (error) {
         console.error("Failed to send PLAY_AUDIO message:", error);
-        URL.revokeObjectURL(audioUrl);
 
-        // Try to show a notification about the error
-        await showNotification(
-          "TTS Playback Error",
-          "Could not play audio. Please try refreshing the page."
-        );
+        // Try to inject content script and retry
+        try {
+          await ensureContentScriptLoaded(tab.id);
+          const response = await browser.tabs.sendMessage(tab.id, {
+            type: "PLAY_AUDIO",
+            audioData: Array.from(new Uint8Array(arrayBuffer)),
+            mimeType: combinedBlob.type || "audio/mpeg",
+            rate: settings.rate || 1,
+          });
+          console.log("PLAY_AUDIO response after injection:", response);
+        } catch (retryError) {
+          console.error("Retry failed:", retryError);
+          // Try to show a notification about the error
+          await showNotification(
+            "TTS Playback Error",
+            "Could not communicate with content script. Please refresh the page and try again."
+          );
+        }
       }
     } catch (error) {
       console.error("TTS error:", error);
@@ -147,7 +181,11 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         `Failed to convert text to speech: ${error.message}`,
       );
       // Hide the window if there's an error
-      await browser.tabs.sendMessage(tab.id, { type: "STOP_AUDIO" });
+      try {
+        await browser.tabs.sendMessage(tab.id, { type: "STOP_AUDIO" });
+      } catch (err) {
+        console.log("Could not send STOP_AUDIO message to tab:", err.message);
+      }
     }
   }
 });
@@ -182,14 +220,30 @@ async function showNotification(title, message) {
   try {
     await browser.notifications.create({
       type: "basic",
-      iconUrl: browser.runtime.getURL("icon-48.png"),
+      iconUrl: browser.runtime.getURL("assets/icons/icon-48.png"),
       title,
       message,
     });
   } catch (error) {
     console.error("Failed to show notification:", error);
-    // Fallback to alert if notifications aren't available
-    alert(`${title}: ${message}`);
+    // Service workers can't use alert, just log the error
+    console.log(`Notification fallback: ${title}: ${message}`);
+  }
+}
+
+// Helper function to ensure content script is loaded (for Chrome compatibility)
+async function ensureContentScriptLoaded(tabId) {
+  try {
+    // For Chrome/Chromium, try to inject the content script if not already loaded
+    if (typeof browser.scripting !== 'undefined') {
+      await browser.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ['content.js']
+      });
+      console.log("Content script injected for tab:", tabId);
+    }
+  } catch (error) {
+    console.log("Could not inject content script:", error.message);
   }
 }
 
