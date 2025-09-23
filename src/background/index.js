@@ -118,53 +118,44 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         await ensureContentScriptLoaded(tab.id);
       }
       
-      // Use simplified synthesis for context menu
-      const audioSegments = await ttsService.synthesizeSpeech(info.selectionText, {
+      // Use streaming synthesis for context menu - create streaming response
+      const streamingResponse = await ttsService.ttsService.createStreamingResponse(info.selectionText, {
         voice: settings.voice,
         rate: settings.rate,
         pitch: settings.pitch,
       });
 
-      if (!audioSegments || !audioSegments.length) {
+      if (!streamingResponse) {
         throw new Error("Speech synthesis failed to generate audio");
       }
 
-      // Handle the simplified audio segments format
-      let combinedBlob;
-      if (audioSegments[0] && audioSegments[0].blob) {
-        // Old format with .blob property
-        const audioBlobs = audioSegments.map(segment => segment.blob);
-        combinedBlob = new Blob(audioBlobs, { type: "audio/mpeg" });
-      } else {
-        // New simplified format - direct blob array
-        combinedBlob = audioSegments.length === 1 ? audioSegments[0] : new Blob(audioSegments, { type: "audio/mpeg" });
-      }
-      // Convert blob to array buffer for sending to content script
-      const arrayBuffer = await combinedBlob.arrayBuffer();
+      // Get the response as array buffer for transfer
+      const arrayBuffer = await streamingResponse.arrayBuffer();
 
-      // Play using the injected player through messaging
-      console.log("Sending PLAY_AUDIO message to tab:", tab.id);
+      // Play using streaming approach through messaging
+      console.log("Sending PLAY_STREAMING_AUDIO message to tab:", tab.id);
+      console.log("Audio data size:", arrayBuffer.byteLength, "bytes");
       try {
         const response = await browser.tabs.sendMessage(tab.id, {
-          type: "PLAY_AUDIO",
+          type: "PLAY_STREAMING_AUDIO",
           audioData: Array.from(new Uint8Array(arrayBuffer)),
-          mimeType: combinedBlob.type || "audio/mpeg",
+          mimeType: 'audio/webm; codecs="opus"',
           rate: settings.rate || 1,
         });
-        console.log("PLAY_AUDIO response:", response);
+        console.log("PLAY_STREAMING_AUDIO response:", response);
       } catch (error) {
-        console.error("Failed to send PLAY_AUDIO message:", error);
+        console.error("Failed to send PLAY_STREAMING_AUDIO message:", error);
 
         // Try to inject content script and retry
         try {
           await ensureContentScriptLoaded(tab.id);
           const response = await browser.tabs.sendMessage(tab.id, {
-            type: "PLAY_AUDIO",
+            type: "PLAY_STREAMING_AUDIO",
             audioData: Array.from(new Uint8Array(arrayBuffer)),
-            mimeType: combinedBlob.type || "audio/mpeg",
+            mimeType: 'audio/webm; codecs="opus"',
             rate: settings.rate || 1,
           });
-          console.log("PLAY_AUDIO response after injection:", response);
+          console.log("PLAY_STREAMING_AUDIO response after injection:", response);
         } catch (retryError) {
           console.error("Retry failed:", retryError);
           // Try to show a notification about the error
@@ -190,30 +181,6 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-// Update the message listener for stopping audio
-browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === "STOP_ALL_AUDIO") {
-    browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
-      if (tabs[0]) {
-        browser.tabs.executeScript(tabs[0].id, {
-          code: `
-            const player = document.getElementById('simple-tts-player');
-            if (player) {
-              const audio = player.querySelector('audio');
-              if (audio) {
-                audio.pause();
-                URL.revokeObjectURL(audio.src);
-              }
-              player.remove();
-            }
-          `,
-        });
-      }
-      sendResponse({ success: true });
-    });
-    return true;
-  }
-});
 
 // Helper function to show notifications
 async function showNotification(title, message) {

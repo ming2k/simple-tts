@@ -1,4 +1,5 @@
 import browser from "webextension-polyfill";
+import { AudioPlayer } from "../services/audioPlayer.js";
 
 console.log("Page loaded, script executing!");
 
@@ -695,6 +696,26 @@ console.log("Simple TTS content script loaded");
 initAudioPlayer();
 console.log("TTS audio player initialized");
 
+// Initialize streaming audio player for mini-window
+let streamingAudioPlayer = null;
+
+function getStreamingAudioPlayer() {
+  if (!streamingAudioPlayer) {
+    streamingAudioPlayer = new AudioPlayer();
+
+    // Connect to mini-window controls
+    const originalStopAudio = streamingAudioPlayer.stopAudio.bind(streamingAudioPlayer);
+    streamingAudioPlayer.stopAudio = async function() {
+      // Update mini-window state
+      if (window.ttsMiniWindow) {
+        window.ttsMiniWindow.updateStatus(false);
+      }
+      return await originalStopAudio();
+    };
+  }
+  return streamingAudioPlayer;
+}
+
 // Listen for messages from background script
 browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) => {
   console.log("Content script received message:", request);
@@ -704,115 +725,179 @@ browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) =>
       case "STOP_AUDIO": {
         console.log("Stopping audio...");
         window.ttsPlayer?.stop();
+
+        // Also stop streaming audio player
+        const player = getStreamingAudioPlayer();
+        await player.stopAudio();
+
         const container = document.getElementById("tts-mini-window");
         if (container) container.style.display = "none";
         break;
       }
 
-      case "PLAY_AUDIO": {
-        console.log("Processing PLAY_AUDIO message...");
-        let audioUrl;
+      case "PLAY_STREAMING_AUDIO": {
+        console.log("Processing PLAY_STREAMING_AUDIO message...");
         try {
-          // Ensure audio player is initialized
-          if (!window.ttsPlayer) {
-            console.log("[PLAY_AUDIO] Audio player not found, initializing...");
-            try {
-              const initResult = initAudioPlayer();
-              console.log("[PLAY_AUDIO] initAudioPlayer returned:", initResult);
+          // Ensure mini window exists
+          let miniWindow = document.getElementById("tts-mini-window");
+          console.log("Mini window found:", !!miniWindow);
 
-              // Wait a bit for initialization to complete
-              await new Promise(resolve => setTimeout(resolve, 300));
+          if (!miniWindow) {
+            console.log("Mini window not found, initializing...");
+            initAudioPlayer();
+            miniWindow = document.getElementById("tts-mini-window");
+            console.log("Mini window after init:", !!miniWindow);
+          }
 
-              console.log("[PLAY_AUDIO] Checking window.ttsPlayer:", !!window.ttsPlayer);
-              if (!window.ttsPlayer) {
-                throw new Error("Audio player object not created after initialization");
-              }
+          if (miniWindow) {
+            console.log("Setting mini window display to flex");
+            miniWindow.style.display = "flex";
+            console.log("Mini window display style:", miniWindow.style.display);
+            console.log("Mini window computed style:", window.getComputedStyle(miniWindow).display);
+            console.log("Mini window visibility:", window.getComputedStyle(miniWindow).visibility);
+            console.log("Mini window opacity:", window.getComputedStyle(miniWindow).opacity);
+            console.log("Mini window position:", window.getComputedStyle(miniWindow).position);
+            console.log("Mini window z-index:", window.getComputedStyle(miniWindow).zIndex);
+          } else {
+            console.error("Failed to create or find mini window!");
+          }
 
-              console.log("[PLAY_AUDIO] Checking audio element...");
-              const audioElement = document.getElementById("tts-hidden-player");
-              console.log("[PLAY_AUDIO] Audio element found:", !!audioElement);
-              if (!audioElement) {
-                throw new Error("Audio element not created");
-              }
+          // Convert array back to blob
+          const uint8Array = new Uint8Array(request.audioData);
+          const blob = new Blob([uint8Array], { type: request.mimeType || 'audio/webm; codecs="opus"' });
 
-              console.log("[PLAY_AUDIO] Checking ttsPlayer methods...");
-              if (typeof window.ttsPlayer.play !== 'function') {
-                throw new Error("ttsPlayer.play method missing");
-              }
+          // Use streaming audio player and update mini-window
+          const player = getStreamingAudioPlayer();
 
-              console.log("[PLAY_AUDIO] Audio player initialized and verified successfully");
-            } catch (initError) {
-              console.error("[PLAY_AUDIO] Audio player initialization failed:", initError);
-              console.error("[PLAY_AUDIO] Current state - window.ttsPlayer:", !!window.ttsPlayer);
-              console.error("[PLAY_AUDIO] Current state - audio element:", !!document.getElementById("tts-hidden-player"));
-              throw new Error(`Failed to initialize audio player: ${initError.message}`);
+          // Update mini-window state to show playing
+          if (window.ttsMiniWindow) {
+            window.ttsMiniWindow.updateStatus(true);
+          }
+
+          // Create object URL for fallback mini-window controls
+          const audioUrl = URL.createObjectURL(blob);
+          if (window.ttsPlayer) {
+            const audio = document.getElementById("tts-hidden-player");
+            if (audio) {
+              audio.src = audioUrl;
+              audio.playbackRate = request.rate || 1;
             }
           }
 
-          // Validate request parameters and handle different formats
-          if (request.audioData) {
-            // New format: convert array back to blob and create URL
-            const uint8Array = new Uint8Array(request.audioData);
-            const blob = new Blob([uint8Array], { type: request.mimeType || "audio/mpeg" });
-            audioUrl = URL.createObjectURL(blob);
-          } else if (request.url) {
-            // Legacy format: use provided URL
-            audioUrl = request.url;
-          } else {
-            throw new Error("No audio data or URL provided");
-          }
+          try {
+            // Start streaming playback
+            if (window.MediaSource) {
+              // Create proper mock response for streaming
+              const mockResponse = {
+                body: {
+                  getReader() {
+                    let sent = false;
+                    return {
+                      async read() {
+                        if (sent) {
+                          return { done: true };
+                        }
+                        sent = true;
+                        return { done: false, value: uint8Array };
+                      }
+                    };
+                  }
+                },
+                headers: {
+                  get(name) {
+                    if (name === 'content-length') {
+                      return uint8Array.length.toString();
+                    }
+                    return null;
+                  }
+                }
+              };
 
-          const miniWindow = document.getElementById("tts-mini-window");
-          if (miniWindow) {
-            miniWindow.style.display = "flex";
-          } else {
-            console.warn("Mini window not found, reinitializing...");
-            initAudioPlayer();
-            const newMiniWindow = document.getElementById("tts-mini-window");
-            if (newMiniWindow) newMiniWindow.style.display = "flex";
-          }
+              await player.playStreamingResponse(mockResponse, request.rate || 1);
+            } else {
+              // Fallback to blob approach
+              const mockResponse = {
+                async arrayBuffer() {
+                  return blob.arrayBuffer();
+                },
+                headers: {
+                  get(name) {
+                    if (name === 'content-length') {
+                      return blob.size.toString();
+                    }
+                    return null;
+                  }
+                }
+              };
 
-          // Add timeout for play operation
-          const playPromise = window.ttsPlayer.play(audioUrl, request.rate || 1);
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Play operation timeout')), 30000);
-          });
+              await player.playBlobFallback(mockResponse, request.rate || 1);
+            }
+          } finally {
+            // Always update mini-window state after playback ends
+            if (window.ttsMiniWindow) {
+              window.ttsMiniWindow.updateStatus(false);
+            }
 
-          await Promise.race([playPromise, timeoutPromise]);
-          console.log("Audio playback started successfully");
-
-          // Clean up object URL if we created it
-          if (request.audioData && audioUrl) {
-            // Clean up after a delay to allow playback to start
+            // Clean up
             setTimeout(() => {
               URL.revokeObjectURL(audioUrl);
             }, 1000);
           }
 
+          console.log("Streaming audio playback started successfully");
           return { success: true };
 
-        } catch (playError) {
-          console.error("PLAY_AUDIO error:", playError);
+        } catch (error) {
+          console.error("PLAY_STREAMING_AUDIO error:", error);
+          console.log("Attempting fallback to simple blob playback...");
 
-          // Clean up object URL if we created it
-          if (request.audioData && audioUrl) {
-            try {
-              URL.revokeObjectURL(audioUrl);
-            } catch (e) {
-              console.log("Failed to revoke object URL:", e);
+          // Don't hide mini-window, try fallback playback instead
+          try {
+            // Fallback: Use simple blob audio playback
+            const audioUrl = URL.createObjectURL(blob);
+            const audio = new Audio();
+            audio.src = audioUrl;
+            audio.playbackRate = request.rate || 1;
+
+            // Update mini-window state
+            if (window.ttsMiniWindow) {
+              window.ttsMiniWindow.updateStatus(true);
             }
-          }
 
-          // Try to hide mini window on error
-          const miniWindow = document.getElementById("tts-mini-window");
-          if (miniWindow) {
-            miniWindow.style.display = "none";
-          }
+            // Play the audio
+            await audio.play();
 
-          // Return error info
-          return { success: false, error: playError.message };
+            // Wait for audio to end
+            await new Promise((resolve) => {
+              audio.onended = resolve;
+              audio.onerror = resolve;
+            });
+
+            // Update mini-window state
+            if (window.ttsMiniWindow) {
+              window.ttsMiniWindow.updateStatus(false);
+            }
+
+            // Clean up
+            URL.revokeObjectURL(audioUrl);
+
+            console.log("Fallback audio playback completed successfully");
+            return { success: true };
+
+          } catch (fallbackError) {
+            console.error("Fallback playback also failed:", fallbackError);
+
+            // Only hide mini-window if both streaming and fallback fail
+            const miniWindow = document.getElementById("tts-mini-window");
+            if (miniWindow) {
+              miniWindow.style.display = "none";
+            }
+
+            return { success: false, error: `Streaming failed: ${error.message}, Fallback failed: ${fallbackError.message}` };
+          }
         }
       }
+
     }
     return true;
   } catch (error) {

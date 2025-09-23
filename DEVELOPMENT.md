@@ -2,10 +2,6 @@
 
 This guide provides comprehensive instructions for setting up the development environment, understanding the refactored architecture, and contributing to Simple TTS.
 
-For Azure TTS of Speech Service documentation refer these:
-- [Text to speech REST API](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech)
-https://learn.microsoft.com/en-us/azure/ai-services/speech-service/get-started-text-to-speech?tabs=linux&pivots=programming-language-rest
-
 
 ## Quick Development Setup
 
@@ -63,13 +59,32 @@ simple-tts/
 │   ├── content/            # Content scripts for web page integration
 │   ├── utils/              # Utility functions and helpers
 │   ├── assets/             # Icons, images, and static files
-│   └── _locales/           # Internationalization files
+For better compatibility│   └── _locales/           # Internationalization files
 ├── webpack.*.js            # Build configuration
 ├── jest.config.js          # Test configuration
 ├── CLAUDE.md               # Development guide for AI assistants
 └── package.json            # Dependencies and scripts
 ```
 
+## Core Features
+
+### API
+
+For Azure TTS of Speech Service documentation refer these:
+- [Text to speech REST API](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech)
+- [Quickstart: Convert text to speech](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/get-started-text-to-speech?tabs=linux&pivots=programming-language-rest)
+
+2025-09-23: It uses the HTTP/2.0 protocol, and it will send data in chunks if you select a streaming file format in the header.
+
+For better compatibility, I recommend using WebM + Opus.
+
+e.g.
+
+```txt
+X-Microsoft-OutputFormat: webm-24khz-16bit-24kbps-mono-opus
+```
+
+Then pass the chunks to the browser's MediaSource API for streaming playback to achieve lower latency.
 
 ## Testing Guide
 
