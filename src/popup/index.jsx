@@ -14,7 +14,7 @@ function Popup() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [status, setStatus] = useState("");
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
-  const [audioPlayer, setAudioPlayer] = useState(null);
+  const [ttsInstance, setTtsInstance] = useState(null);
 
   useEffect(() => {
     browser.storage.local
@@ -41,9 +41,9 @@ function Popup() {
 
     try {
       if (isSpeaking) {
-        if (audioPlayer) {
-          await audioPlayer.cleanup();
-          setAudioPlayer(null);
+        if (ttsInstance) {
+          await ttsInstance.stopAudio();
+          setTtsInstance(null);
         }
         setIsSpeaking(false);
         setStatus("");
@@ -62,33 +62,34 @@ function Popup() {
       }
 
       const tts = new SimpleTTS(settings.azureKey, settings.azureRegion);
-      
+      setTtsInstance(tts);
+
       // Use sequential processing with line break support
       await tts.playTextSequential(text, {
         voice: settings.voice,
         rate: settings.rate,
         pitch: settings.pitch,
       });
-      
+
       setStatus("");
       setIsSpeaking(false);
-      setAudioPlayer(null);
+      setTtsInstance(null);
     } catch (error) {
       console.error("TTS error:", error);
       setStatus(`Error: ${error.message}`);
       setIsSpeaking(false);
-      if (audioPlayer) {
-        await audioPlayer.cleanup();
-        setAudioPlayer(null);
+      if (ttsInstance) {
+        await ttsInstance.stopAudio();
+        setTtsInstance(null);
       }
     }
   };
 
   const handleStop = async () => {
     try {
-      if (audioPlayer) {
-        await audioPlayer.cleanup();
-        setAudioPlayer(null);
+      if (ttsInstance) {
+        await ttsInstance.stopAudio();
+        setTtsInstance(null);
       }
       setIsSpeaking(false);
       setStatus("");

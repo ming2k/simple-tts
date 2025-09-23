@@ -1,34 +1,29 @@
 import { TTSService } from "./ttsService.js";
-import { AudioController } from "./audioController.js";
 
 export class SimpleTTS {
   constructor(azureKey, azureRegion) {
     this.ttsService = new TTSService(azureKey, azureRegion);
-    this.audioController = new AudioController(this.ttsService);
   }
 
   async stopAudio() {
-    return await this.audioController.stopAudio();
+    return await this.ttsService.stopAudio();
   }
 
-  async playTextSequential(text, userSettings = {}, onProgress = null) {
-    return await this.audioController.playTextSequential(text, userSettings, onProgress);
+  async playText(text, userSettings = {}) {
+    return await this.ttsService.playText(text, userSettings);
   }
 
-  async playTextParallel(text, userSettings = {}, onProgress = null) {
-    return await this.audioController.playTextParallel(text, userSettings, onProgress);
+  async playTextWithTrueStreaming(text, userSettings = {}, onProgress = null) {
+    return await this.ttsService.playTextWithTrueStreaming(text, userSettings, onProgress);
   }
 
-  async playTextWithSequentialConcatenation(text, userSettings = {}, onProgress = null) {
-    return await this.audioController.playTextWithSequentialConcatenation(text, userSettings, onProgress);
+  async playTextSequential(text, userSettings = {}) {
+    return await this.ttsService.playTextSequential(text, userSettings);
   }
 
-  async synthesizeSpeech(text, userSettings = {}, onProgress = null) {
-    return await this.audioController.synthesizeSpeech(text, userSettings, onProgress);
-  }
-
-  async getSequentialAudioSegments(text, userSettings = {}) {
-    return await this.audioController.getSequentialAudioSegments(text, userSettings);
+  async synthesizeSpeech(text, userSettings = {}) {
+    const finalSettings = await this.ttsService.getVoiceSettings(text, userSettings);
+    return await this.ttsService.synthesizeSpeech(text, finalSettings);
   }
 
   async getVoicesList() {
@@ -38,6 +33,5 @@ export class SimpleTTS {
 }
 
 export { TTSService } from "./ttsService.js";
-export { AudioController } from "./audioController.js";
 export { AudioPlayer } from "./audioPlayer.js";
 export { TextProcessor } from "./textProcessor.js";

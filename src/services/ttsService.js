@@ -1,4 +1,5 @@
 import { TextProcessor } from "./textProcessor.js";
+import { AudioPlayer } from "./audioPlayer.js";
 import browser from "webextension-polyfill";
 
 export class TTSService {
@@ -7,11 +8,8 @@ export class TTSService {
     this.azureRegion = azureRegion;
     this.baseUrl =
       `https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
-    this.tokenUrl =
-      `https://${azureRegion}.api.cognitive.microsoft.com/sts/v1.0/issueToken`;
     this.textProcessor = new TextProcessor();
-    this.accessToken = null;
-    this.tokenExpiry = null;
+    this.audioPlayer = new AudioPlayer();
   }
 
   createSSML(text, voice = "en-US-ChristopherNeural", rate = 1, pitch = 1) {
@@ -26,167 +24,204 @@ export class TTSService {
     </voice></speak>`.trim();
   }
 
-  async getAccessToken() {
-    if (this.accessToken && this.tokenExpiry && Date.now() < this.tokenExpiry) {
-      return this.accessToken;
-    }
 
+  async synthesizeSpeech(text, settings = {}) {
+    const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+    const ssml = this.createSSML(text, settings.voice, settings.rate || 1, pitchPercent);
+
+    return await this.synthesizeStreaming(ssml);
+  }
+
+  async stopAudio() {
+    return await this.audioPlayer.stopAudio();
+  }
+
+  getAudioFormat() {
+    return {
+      audioFormat: 'webm-24khz-16bit-mono-opus',
+      mimeType: 'audio/webm; codecs="opus"'
+    };
+  }
+
+  async synthesizeStreaming(ssml) {
     if (!this.azureKey || !this.azureRegion) {
       throw new Error("Azure credentials not configured");
     }
 
+    const { audioFormat, mimeType } = this.getAudioFormat();
+
+    const response = await fetch(this.baseUrl, {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': this.azureKey,
+        'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': audioFormat
+      },
+      body: ssml
+    });
+
+    if (!response.ok) {
+      throw new Error(`Speech synthesis failed (${response.status}): ${response.statusText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return new Blob([arrayBuffer], { type: mimeType });
+  }
+
+
+  async playText(text, userSettings = {}) {
+    await this.audioPlayer.stopAudio();
+    const finalSettings = await this.getVoiceSettings(text, userSettings);
+    return await this.playTextWithStreaming(text, finalSettings);
+  }
+
+  async playTextWithStreaming(text, settings = {}) {
+    const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+    const ssml = this.createSSML(text, settings.voice, settings.rate || 1, pitchPercent);
+
+    const { audioFormat, mimeType } = this.getAudioFormat();
+
+    const response = await fetch(this.baseUrl, {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': this.azureKey,
+        'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': audioFormat
+      },
+      body: ssml
+    });
+
+    if (!response.ok) {
+      throw new Error(`Speech synthesis failed (${response.status}): ${response.statusText}`);
+    }
+
+    // Create audio element and play directly
+    const audio = new Audio();
+    audio.playbackRate = settings.rate || 1;
+
+    const arrayBuffer = await response.arrayBuffer();
+    const blob = new Blob([arrayBuffer], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+
+    audio.src = url;
+    await audio.play();
+
+    return new Promise((resolve) => {
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+    });
+  }
+
+  async playTextWithTrueStreaming(text, userSettings = {}, onProgress = null) {
+    await this.audioPlayer.stopAudio();
+    const finalSettings = await this.getVoiceSettings(text, userSettings);
+
     try {
-      const response = await fetch(this.tokenUrl, {
-        method: 'POST',
-        headers: {
-          'Ocp-Apim-Subscription-Key': this.azureKey,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Connection': 'keep-alive'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Token request failed (${response.status}): ${response.statusText}`);
-      }
-
-      this.accessToken = await response.text();
-      this.tokenExpiry = Date.now() + (9 * 60 * 1000); // 9 minutes (buffer for 10min expiry)
-
-      return this.accessToken;
+      const response = await this.createStreamingResponse(text, finalSettings);
+      return await this.audioPlayer.playStreamingResponse(response, finalSettings.rate, onProgress);
     } catch (error) {
-      console.error('Failed to get access token:', error);
+      console.error('Streaming playback failed:', error);
       throw error;
     }
   }
 
-  async synthesizeSingleChunk(text, settings = {}, onProgress = null) {
-    const pitchPercent = ((settings.pitch || 1) - 1) * 100;
-    const ssml = this.createSSML(text, settings.voice, settings.rate || 1, pitchPercent);
+  async playTextSequential(text, userSettings = {}) {
+    await this.audioPlayer.stopAudio();
+    const finalSettings = await this.getVoiceSettings(text, userSettings);
 
-    return await this.synthesizeWithStreaming(ssml, onProgress);
-  }
+    const segments = text.split(/\n+/).filter(segment => segment.trim().length > 0);
 
-  // Keep backward compatibility
-  async synthesizeWithChunkedTransfer(ssml) {
-    return await this.synthesizeWithStreaming(ssml);
-  }
+    if (segments.length === 0) {
+      throw new Error('No text to speak');
+    }
 
-  // Non-streaming method for cases where MP3 format is specifically needed
-  async synthesizeNonStreaming(ssml) {
-    return await this.synthesizeWithStreaming(ssml, null, true);
-  }
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i].trim();
+      if (segment) {
+        try {
+          const response = await this.createStreamingResponse(segment, finalSettings);
+          await this.audioPlayer.playStreamingResponse(response, finalSettings.rate);
 
-  checkWebMSupport() {
-    try {
-      // Check if we're in a browser environment
-      if (typeof document === 'undefined') {
-        return false; // Node.js environment
+          if (i < segments.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        } catch (error) {
+          console.error(`Error playing segment ${i + 1}:`, error);
+          throw new Error(`Speech synthesis failed to generate audio`);
+        }
       }
-
-      // Create test audio element to check codec support
-      const audio = document.createElement('audio');
-
-      // Check for WebM with Opus support
-      const webmOpusSupport = audio.canPlayType('audio/webm; codecs="opus"');
-
-      // Return true if support is "probably" or "maybe"
-      const isSupported = webmOpusSupport === 'probably' || webmOpusSupport === 'maybe';
-
-      console.log(`WebM/Opus support check: ${webmOpusSupport} (${isSupported ? 'supported' : 'not supported'})`);
-
-      return isSupported;
-    } catch (error) {
-      console.warn('Error checking WebM support, falling back to MP3:', error);
-      return false;
     }
   }
 
-  async synthesizeWithStreaming(ssml, onChunkReceived = null, useNonStreaming = false) {
-    const accessToken = await this.getAccessToken();
-    const isStreaming = !useNonStreaming; // Default to streaming unless explicitly disabled
+  async getStreamingUrl(text, settings = {}) {
+    const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+    const ssml = this.createSSML(text, settings.voice, settings.rate || 1, pitchPercent);
 
-    // Check format support and fall back to MP3 if WebM/Opus not supported
-    const supportsWebM = this.checkWebMSupport();
-    const audioFormat = isStreaming && supportsWebM ? 'webm-24khz-16bit-mono-opus' : 'audio-24khz-48kbitrate-mono-mp3';
-    const mimeType = isStreaming && supportsWebM ? 'audio/webm' : 'audio/mpeg';
+    const { audioFormat } = this.getAudioFormat();
 
-    console.log(`TTS synthesis started - Mode: ${isStreaming ? 'streaming' : 'non-streaming'}, Format: ${audioFormat}, WebM support: ${supportsWebM}`);
+    const requestBody = new URLSearchParams({
+      ssml: ssml,
+      format: audioFormat
+    });
+
+    const streamEndpoint = `${this.baseUrl}/stream`;
+    return `${streamEndpoint}?${requestBody}`;
+  }
+
+  async createStreamingResponse(text, settings = {}) {
+    if (!this.azureKey || !this.azureRegion) {
+      throw new Error("Azure credentials not configured");
+    }
+
+    const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+    const ssml = this.createSSML(text, settings.voice, settings.rate || 1, pitchPercent);
+
+    const { audioFormat } = this.getAudioFormat();
 
     try {
       const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Ocp-Apim-Subscription-Key': this.azureKey,
           'Content-Type': 'application/ssml+xml',
-          'X-Microsoft-OutputFormat': audioFormat,
-          'User-Agent': 'TTS-Browser-Extension',
-          'Connection': 'keep-alive'
+          'X-Microsoft-OutputFormat': audioFormat
         },
         body: ssml
       });
 
       if (!response.ok) {
-        throw new Error(`Speech synthesis failed (${response.status}): ${response.statusText}`);
+        let errorDetails = response.statusText;
+        try {
+          const errorText = await response.text();
+          if (errorText) {
+            errorDetails = errorText;
+          }
+        } catch {
+          // Ignore error parsing error response
+        }
+
+        if (response.status === 401) {
+          throw new Error(`Invalid Azure API key or expired subscription`);
+        } else if (response.status === 403) {
+          throw new Error(`Access denied. Check your Azure subscription and region`);
+        } else if (response.status === 429) {
+          throw new Error(`Rate limit exceeded. Please try again later`);
+        } else {
+          throw new Error(`Speech synthesis failed (${response.status}): ${errorDetails}`);
+        }
       }
 
-      const contentLength = response.headers.get('content-length');
-      const total = contentLength ? parseInt(contentLength, 10) : 0;
-
-      if (isStreaming && response.body) {
-        console.log(`Streaming enabled - Content-Length: ${total || 'unknown'}`);
-        return await this.processStreamingResponse(response, onChunkReceived, total, mimeType);
-      } else {
-        console.log('Non-streaming mode - buffering complete response');
-        const arrayBuffer = await response.arrayBuffer();
-        return new Blob([arrayBuffer], { type: mimeType });
-      }
+      return response;
     } catch (error) {
-      console.error('TTS synthesis error:', error);
+      if (error.message.includes('fetch')) {
+        throw new Error(`Network error: Check your internet connection`);
+      }
       throw error;
     }
   }
 
-  async processStreamingResponse(response, onChunkReceived, total, mimeType) {
-    const reader = response.body.getReader();
-    const chunks = [];
-    let loaded = 0;
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) {
-          console.log(`Streaming complete - Total bytes: ${loaded}`);
-          break;
-        }
-
-        chunks.push(value);
-        loaded += value.length;
-
-        if (onChunkReceived) {
-          const progress = total > 0 ? (loaded / total) * 100 : 0;
-          onChunkReceived({
-            progress,
-            loaded,
-            total,
-            isStreaming: true,
-            chunkSize: value.length
-          });
-        }
-      }
-
-      const arrayBuffer = new Uint8Array(loaded);
-      let offset = 0;
-      for (const chunk of chunks) {
-        arrayBuffer.set(chunk, offset);
-        offset += chunk.length;
-      }
-
-      return new Blob([arrayBuffer], { type: mimeType });
-    } finally {
-      reader.releaseLock();
-    }
-  }
 
   async getSettings() {
     const { settings, languageVoiceSettings } = await browser.storage.local.get([
@@ -198,9 +233,6 @@ export class TTSService {
       this.azureKey = settings.azureKey;
       this.azureRegion = settings.azureRegion;
       this.baseUrl = `https://${settings.azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
-      this.tokenUrl = `https://${settings.azureRegion}.api.cognitive.microsoft.com/sts/v1.0/issueToken`;
-      this.accessToken = null;
-      this.tokenExpiry = null;
     }
 
     return { settings, languageVoiceSettings };
@@ -230,15 +262,16 @@ export class TTSService {
 
 
   async getVoicesList() {
-    const accessToken = await this.getAccessToken();
+    if (!this.azureKey || !this.azureRegion) {
+      throw new Error("Azure credentials not configured");
+    }
 
     const response = await fetch(
       `https://${this.azureRegion}.tts.speech.microsoft.com/cognitiveservices/voices/list`,
       {
         headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          "Connection": "keep-alive",
+          "Ocp-Apim-Subscription-Key": this.azureKey,
+          "Content-Type": "application/json"
         },
       },
     );

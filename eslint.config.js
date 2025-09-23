@@ -6,6 +6,7 @@ import globals from 'globals';
 export default [
   {
     files: ['src/**/*.{js,jsx}'],
+    ignores: ['src/__tests__/**'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -40,6 +41,30 @@ export default [
       react: {
         version: 'detect',
       },
+    },
+  },
+  {
+    files: ['src/__tests__/**/*.{js,jsx}'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.browser,
+        ...globals.jest,
+        ...globals.node,
+        jest: 'readonly',
+        expect: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        global: 'readonly',
+      },
+    },
+    rules: {
+      'no-undef': 'error',
     },
   },
 ];

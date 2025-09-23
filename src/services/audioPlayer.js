@@ -1,269 +1,168 @@
 export class AudioPlayer {
   constructor() {
-    this.audioContext = null;
     this.currentAudio = null;
-    this.streamingPlayer = null;
-  }
-
-  async initAudioContext() {
-    if (!this.audioContext) {
-      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-      const sampleRate = this.audioContext.sampleRate;
-      const silentBuffer = this.audioContext.createBuffer(1, sampleRate, sampleRate);
-      const source = this.audioContext.createBufferSource();
-      source.buffer = silentBuffer;
-      source.connect(this.audioContext.destination);
-
-      const startTime = this.audioContext.currentTime;
-      source.start(startTime);
-      source.stop(startTime + 0.5);
-
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-    return this.audioContext;
+    this.currentMediaSource = null;
   }
 
   async stopAudio() {
     if (this.currentAudio) {
-      if (this.currentAudio.source) {
-        this.currentAudio.source.stop();
-        this.currentAudio.source.disconnect();
+      this.currentAudio.pause();
+      if (this.currentAudio.src) {
+        URL.revokeObjectURL(this.currentAudio.src);
       }
       this.currentAudio = null;
     }
 
-    if (this.streamingPlayer) {
-      this.streamingPlayer.pause();
-      this.streamingPlayer.currentTime = 0;
-      this.streamingPlayer = null;
+    if (this.currentMediaSource && this.currentMediaSource.readyState === 'open') {
+      try {
+        this.currentMediaSource.endOfStream();
+      } catch {
+        // MediaSource might already be closed
+      }
     }
+    this.currentMediaSource = null;
   }
 
-  async playAudioChunk(audioBlob, rate = 1, existingContext = null) {
+  async playStreamingResponse(response, rate = 1, onProgress = null) {
+    await this.stopAudio();
+
+    if (!window.MediaSource) {
+      return this.playBlobFallback(response, rate, onProgress);
+    }
+
     return new Promise((resolve, reject) => {
-      const playChunk = async () => {
-        try {
-          const context = existingContext || (await this.initAudioContext());
+      const audio = new Audio();
+      const mediaSource = new MediaSource();
 
-          if (context.state !== "running") {
-            await context.resume();
-          }
+      audio.src = URL.createObjectURL(mediaSource);
+      audio.playbackRate = rate;
+      this.currentAudio = audio;
+      this.currentMediaSource = mediaSource;
 
-          const source = context.createBufferSource();
-          this.currentAudio = { context, source };
+      mediaSource.addEventListener('sourceopen', () => {
+        this.handleStreamingPlayback(response, mediaSource, audio, onProgress)
+          .then(resolve)
+          .catch(reject);
+      });
 
-          const arrayBuffer = await audioBlob.arrayBuffer();
-          let audioBuffer;
-
-          try {
-            audioBuffer = await context.decodeAudioData(arrayBuffer);
-          } catch (decodeError) {
-            console.warn('Failed to decode audio format:', decodeError);
-            // Audio format not supported by WebAudio API
-            throw new Error(`Audio format not supported: ${decodeError.message}`);
-          }
-
-          source.buffer = audioBuffer;
-          source.playbackRate.value = rate;
-          source.connect(context.destination);
-
-          const startTime = context.currentTime + 0.1;
-
-          source.onended = () => {
-            source.disconnect();
-            resolve();
-          };
-
-          source.start(startTime);
-        } catch (error) {
-          console.error("Playback error:", error);
-          reject(error);
-        }
+      audio.onerror = () => {
+        this.cleanup(audio, mediaSource);
+        reject(new Error('Audio playback failed'));
       };
-
-      playChunk();
     });
   }
 
-  async playAudioBuffer(audioBuffer, rate = 1) {
+  async handleStreamingPlayback(response, mediaSource, audio, onProgress) {
     try {
-      const audioContext = await this.initAudioContext();
-
-      return new Promise((resolve, reject) => {
-        try {
-          const source = audioContext.createBufferSource();
-          source.buffer = audioBuffer;
-          source.playbackRate.value = rate;
-          source.connect(audioContext.destination);
-
-          this.currentAudio = { context: audioContext, source };
-
-          source.onended = () => {
-            source.disconnect();
-            resolve();
-          };
-
-          source.start();
-
-        } catch (error) {
-          console.error('AudioBuffer playback error:', error);
-          reject(error);
-        }
-      });
-
-    } catch (error) {
-      console.error('AudioBuffer playback failed:', error);
-      throw error;
-    }
-  }
-
-  async concatenateAudioChunks(audioChunks) {
-    const audioContext = await this.initAudioContext();
-    const audioBuffers = [];
-    let totalSamples = 0;
-
-    for (let i = 0; i < audioChunks.length; i++) {
-      const chunk = audioChunks[i];
-
-      try {
-        const arrayBuffer = await chunk.blob.arrayBuffer();
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        audioBuffers.push(audioBuffer);
-        totalSamples += audioBuffer.length;
-      } catch (error) {
-        console.error(`Failed to decode chunk ${i + 1}:`, error);
-        throw error;
-      }
-    }
-
-    const sampleRate = audioBuffers[0].sampleRate;
-    const channels = audioBuffers[0].numberOfChannels;
-    const concatenatedBuffer = audioContext.createBuffer(channels, totalSamples, sampleRate);
-
-    let offset = 0;
-    for (let i = 0; i < audioBuffers.length; i++) {
-      const buffer = audioBuffers[i];
-      for (let channel = 0; channel < channels; channel++) {
-        const sourceData = buffer.getChannelData(channel);
-        const targetData = concatenatedBuffer.getChannelData(channel);
-        targetData.set(sourceData, offset);
-      }
-      offset += buffer.length;
-    }
-
-    return concatenatedBuffer;
-  }
-
-  // Keep backward compatibility
-  async concatenateMP3Chunks(mp3Chunks) {
-    return await this.concatenateAudioChunks(mp3Chunks);
-  }
-
-  async playStreamingAudio(audioBlob, rate = 1, onProgress = null) {
-    try {
-      // Check if we're in a browser extension context
-      if (typeof window !== 'undefined' && window.ttsPlayer) {
-        // Use the content script's player for browser extension
-        const objectUrl = URL.createObjectURL(audioBlob);
-        try {
-          await window.ttsPlayer.play(objectUrl, rate);
-          if (onProgress) onProgress({ stage: 'ready', progress: 100 });
-          return;
-        } catch (extensionError) {
-          console.warn('Extension player failed, trying direct audio:', extensionError);
-          URL.revokeObjectURL(objectUrl);
-          // Fall through to direct audio
-        }
+      if (mediaSource.readyState !== 'open') {
+        throw new Error('MediaSource not ready');
       }
 
-      // Direct HTML5 audio approach
-      const audio = new Audio();
-      this.streamingPlayer = audio;
+      const sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
+      const reader = response.body.getReader();
 
-      // Set up the audio source
-      const objectUrl = URL.createObjectURL(audioBlob);
-      audio.src = objectUrl;
-      audio.playbackRate = rate;
+      let totalSize = parseInt(response.headers.get('content-length') || '0');
+      let receivedSize = 0;
+      let hasStartedPlaying = false;
 
-      return new Promise((resolve, reject) => {
-        let resolved = false;
+      while (true) {
+        const { done, value } = await reader.read();
 
-        const cleanup = () => {
-          if (!resolved) {
-            URL.revokeObjectURL(objectUrl);
-            this.streamingPlayer = null;
-            resolved = true;
+        if (done) {
+          if (mediaSource.readyState === 'open') {
+            mediaSource.endOfStream();
           }
-        };
+          break;
+        }
 
-        audio.oncanplaythrough = () => {
-          if (onProgress) onProgress({ stage: 'ready', progress: 100 });
-        };
+        receivedSize += value.byteLength;
+        if (onProgress && totalSize > 0) {
+          onProgress({
+            stage: 'streaming',
+            progress: Math.round((receivedSize / totalSize) * 100)
+          });
+        }
 
+        // Wait for sourceBuffer to be ready
+        while (sourceBuffer.updating) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+
+        // Check if mediaSource is still open before appending
+        if (mediaSource.readyState === 'open') {
+          sourceBuffer.appendBuffer(value);
+        } else {
+          break;
+        }
+
+        if (!hasStartedPlaying && audio.readyState >= 3) {
+          hasStartedPlaying = true;
+          await audio.play();
+        }
+      }
+
+      return new Promise((resolve) => {
         audio.onended = () => {
-          cleanup();
+          this.cleanup(audio, mediaSource);
           resolve();
         };
-
-        audio.onerror = (error) => {
-          console.error('Direct audio playback error:', error);
-          cleanup();
-
-          // Try WebAudio as final fallback
-          this.playAudioChunk(audioBlob, rate)
-            .then(resolve)
-            .catch(reject);
-        };
-
-        // Start playback
-        audio.play().catch((playError) => {
-          console.error('Audio play() failed:', playError);
-          cleanup();
-
-          // Try WebAudio as final fallback
-          this.playAudioChunk(audioBlob, rate)
-            .then(resolve)
-            .catch(reject);
-        });
       });
 
     } catch (error) {
-      console.error('Streaming playback failed completely, using WebAudio fallback:', error);
-
-      // Final fallback to WebAudio
-      return await this.playAudioChunk(audioBlob, rate);
+      this.cleanup(audio, mediaSource);
+      throw error;
     }
   }
 
-  async playAudioSegmentsInOrder(audioSegments, playbackRate = 1) {
-    try {
-      const audioContext = await this.initAudioContext();
+  async playBlobFallback(response, rate = 1, onProgress = null) {
+    const arrayBuffer = await response.arrayBuffer();
+    const blob = new Blob([arrayBuffer], { type: 'audio/webm; codecs="opus"' });
 
-      if (audioContext.state !== "running") {
-        await audioContext.resume();
+    const audio = new Audio();
+    const objectUrl = URL.createObjectURL(blob);
+
+    audio.src = objectUrl;
+    audio.playbackRate = rate;
+    this.currentAudio = audio;
+
+    return new Promise((resolve, reject) => {
+      audio.oncanplaythrough = () => {
+        if (onProgress) onProgress({ stage: 'ready', progress: 100 });
+      };
+
+      audio.onended = () => {
+        URL.revokeObjectURL(objectUrl);
+        this.currentAudio = null;
+        resolve();
+      };
+
+      audio.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        this.currentAudio = null;
+        reject(new Error('Audio playback failed'));
+      };
+
+      audio.play().catch(reject);
+    });
+  }
+
+  cleanup(audio, mediaSource = null) {
+    if (audio && audio.src) {
+      URL.revokeObjectURL(audio.src);
+    }
+    if (this.currentAudio === audio) {
+      this.currentAudio = null;
+    }
+
+    if (mediaSource && mediaSource.readyState === 'open') {
+      try {
+        mediaSource.endOfStream();
+      } catch {
+        // MediaSource might already be closed
       }
-
-      const sortedSegments = [...audioSegments].sort((a, b) => a.order - b.order);
-
-      for (let i = 0; i < sortedSegments.length; i++) {
-        const segment = sortedSegments[i];
-
-        try {
-          await this.playAudioChunk(segment.blob, playbackRate, audioContext);
-
-          if (i < sortedSegments.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
-
-        } catch (error) {
-          console.error(`Error playing segment ${i + 1}:`, error);
-        }
-      }
-
-    } catch (error) {
-      console.error('Error in ordered audio playback:', error);
-      throw error;
+    }
+    if (this.currentMediaSource === mediaSource) {
+      this.currentMediaSource = null;
     }
   }
 }

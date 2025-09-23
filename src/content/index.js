@@ -395,17 +395,36 @@ function createMiniWindow() {
 
 // Initialize hidden audio player with proper state management
 function initAudioPlayer() {
-  // Prevent multiple initializations
-  if (window.ttsPlayer && document.getElementById("tts-hidden-player")) {
-    return;
-  }
+  try {
+    console.log("[INIT] Starting audio player initialization...");
 
-  if (!document.getElementById("tts-hidden-player")) {
-    const audio = document.createElement("audio");
-    audio.id = "tts-hidden-player";
-    audio.style.display = "none";
+    // Prevent multiple initializations
+    if (window.ttsPlayer && document.getElementById("tts-hidden-player")) {
+      console.log("[INIT] Audio player already initialized");
+      return;
+    }
 
-    const miniWindow = createMiniWindow();
+    console.log("[INIT] Checking for existing audio element...");
+    const existingAudio = document.getElementById("tts-hidden-player");
+    console.log("[INIT] Existing audio element:", existingAudio);
+
+    if (!existingAudio) {
+      console.log("[INIT] Creating new audio element...");
+      const audio = document.createElement("audio");
+      if (!audio) {
+        throw new Error("Failed to create audio element");
+      }
+
+      audio.id = "tts-hidden-player";
+      audio.style.display = "none";
+      console.log("[INIT] Audio element created:", audio);
+
+      console.log("[INIT] Creating mini window...");
+      const miniWindow = createMiniWindow();
+      if (!miniWindow) {
+        throw new Error("createMiniWindow returned null/undefined");
+      }
+      console.log("[INIT] Mini window created:", miniWindow);
     let currentAudioUrl = null;
 
     // Store miniWindow reference globally
@@ -655,6 +674,19 @@ function initAudioPlayer() {
         return audio ? getActualPlayingState() : false;
       }
     };
+
+    console.log("[INIT] Setting window.ttsPlayer...");
+    if (!window.ttsPlayer) {
+      throw new Error("window.ttsPlayer was not set properly");
+    }
+
+    console.log("[INIT] Audio player initialized successfully");
+    return true;
+  }
+  } catch (error) {
+    console.error("[INIT] Failed to initialize audio player:", error);
+    console.error("[INIT] Error stack:", error.stack);
+    throw error;
   }
 }
 
@@ -683,14 +715,38 @@ browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) =>
         try {
           // Ensure audio player is initialized
           if (!window.ttsPlayer) {
-            console.log("Audio player not found, initializing...");
-            initAudioPlayer();
-            // Wait a bit for initialization to complete
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
+            console.log("[PLAY_AUDIO] Audio player not found, initializing...");
+            try {
+              const initResult = initAudioPlayer();
+              console.log("[PLAY_AUDIO] initAudioPlayer returned:", initResult);
 
-          if (!window.ttsPlayer) {
-            throw new Error("Failed to initialize audio player");
+              // Wait a bit for initialization to complete
+              await new Promise(resolve => setTimeout(resolve, 300));
+
+              console.log("[PLAY_AUDIO] Checking window.ttsPlayer:", !!window.ttsPlayer);
+              if (!window.ttsPlayer) {
+                throw new Error("Audio player object not created after initialization");
+              }
+
+              console.log("[PLAY_AUDIO] Checking audio element...");
+              const audioElement = document.getElementById("tts-hidden-player");
+              console.log("[PLAY_AUDIO] Audio element found:", !!audioElement);
+              if (!audioElement) {
+                throw new Error("Audio element not created");
+              }
+
+              console.log("[PLAY_AUDIO] Checking ttsPlayer methods...");
+              if (typeof window.ttsPlayer.play !== 'function') {
+                throw new Error("ttsPlayer.play method missing");
+              }
+
+              console.log("[PLAY_AUDIO] Audio player initialized and verified successfully");
+            } catch (initError) {
+              console.error("[PLAY_AUDIO] Audio player initialization failed:", initError);
+              console.error("[PLAY_AUDIO] Current state - window.ttsPlayer:", !!window.ttsPlayer);
+              console.error("[PLAY_AUDIO] Current state - audio element:", !!document.getElementById("tts-hidden-player"));
+              throw new Error(`Failed to initialize audio player: ${initError.message}`);
+            }
           }
 
           // Validate request parameters and handle different formats
