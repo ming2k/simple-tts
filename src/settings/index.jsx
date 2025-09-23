@@ -12,7 +12,7 @@ import { Sponsor } from "./components/tabs/Sponsor";
 import { About } from "./components/tabs/About";
 import "./settings.css";
 import { SimpleTTS } from "../services/index.js";
-import { VoiceSettings } from "./components/tabs/VoiceSettings";
+import { AudioSettings } from "./components/tabs/AudioSettings";
 
 function Settings() {
   const [activeTab, setActiveTab] = useState("api");
@@ -29,7 +29,7 @@ function Settings() {
   useEffect(() => {
     // Get initial tab from URL hash or storage
     const hash = window.location.hash.slice(1);
-    const validTabs = ["api", "voice", "document", "sponsor", "about"];
+    const validTabs = ["api", "audio", "document", "sponsor", "about"];
     const initialTab = validTabs.includes(hash) ? hash : "api";
 
     browser.storage.local
@@ -146,9 +146,9 @@ function Settings() {
             onTabChange={handleTabChange}
           />
         );
-      case "voice":
+      case "audio":
         return (
-          <VoiceSettings
+          <AudioSettings
             settings={settings}
             selectedLocale={selectedLocale}
             groupedVoices={groupedVoices}

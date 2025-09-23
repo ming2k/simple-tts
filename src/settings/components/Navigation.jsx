@@ -48,7 +48,7 @@ const TabButton = styled.a`
 export function Navigation({ activeTab, onTabChange }) {
   const tabs = [
     { id: 'api', label: 'API Settings' },
-    { id: 'voice', label: 'Audio Settings' },
+    { id: 'audio', label: 'Audio Settings' },
     { id: 'document', label: 'Document' },
     { id: 'about', label: 'About' },
     { id: 'sponsor', label: 'Sponsor' }
