@@ -6,10 +6,16 @@ export class TTSService {
   constructor(azureKey, azureRegion) {
     this.azureKey = azureKey;
     this.azureRegion = azureRegion;
-    this.baseUrl =
-      `https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
+    this.baseUrl = azureRegion ?
+      `https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1` : null;
     this.textProcessor = new TextProcessor();
     this.audioPlayer = new AudioPlayer();
+  }
+
+  setCredentials(azureKey, azureRegion) {
+    this.azureKey = azureKey;
+    this.azureRegion = azureRegion;
+    this.baseUrl = `https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
   }
 
   createSSML(text, voice = "en-US-ChristopherNeural", rate = 1, pitch = 1) {

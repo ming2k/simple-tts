@@ -2,7 +2,6 @@
 
 This guide provides comprehensive instructions for setting up the development environment, understanding the refactored architecture, and contributing to Simple TTS.
 
-
 ## Quick Development Setup
 
 ```bash

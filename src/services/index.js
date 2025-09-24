@@ -30,6 +30,10 @@ export class SimpleTTS {
     return await this.ttsService.getVoicesList();
   }
 
+  async createStreamingResponse(text, settings = {}) {
+    return await this.ttsService.createStreamingResponse(text, settings);
+  }
+
 }
 
 export { TTSService } from "./ttsService.js";
