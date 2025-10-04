@@ -1,6 +1,8 @@
 import browser from "webextension-polyfill";
 import { SimpleTTS } from "../services/index.js";
 
+console.log("[Simple TTS] Background script loaded/reloaded");
+
 // Separate function to create context menu
 async function createContextMenu() {
   try {

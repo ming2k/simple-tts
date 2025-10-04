@@ -119,13 +119,3 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed gu
 ## License
 
 This project is licensed under the [GNU Affero General Public License v3.0](LICENSE) - see the LICENSE file for details.
-
----
-
-<div align="center">
-
-**Made with love for the open source community**
-
-[Report Bug](https://github.com/mingsterism/simple-tts/issues) • [Request Feature](https://github.com/mingsterism/simple-tts/issues) • [Contribute](https://github.com/mingsterism/simple-tts/pulls)
-
-</div>

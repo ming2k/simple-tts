@@ -9,6 +9,8 @@ import { SetupNeeded } from "./components/SetupNeeded";
 import browser from 'webextension-polyfill';
 import "./popup.css";
 
+console.log("[Simple TTS] Popup loaded/reloaded");
+
 function Popup() {
   const [text, setText] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
