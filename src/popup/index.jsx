@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { SimpleTTS } from "../services/index.js";
+import { SimpleTTS } from "../services/ttsService";
 import { Header } from "./components/Header";
 import { TextInput } from "./components/TextInput";
 import { ControlDashboard } from "./components/ControlDashboard.jsx";

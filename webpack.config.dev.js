@@ -29,7 +29,15 @@ const configs = browsers.map(browser => ({
           options: {
             presets: ['@babel/preset-env', '@babel/preset-react']
           }
+        },
+        resolve: {
+          fullySpecified: false
         }
+      },
+      {
+        test: /\.ts$/,
+        exclude: /node_modules/,
+        use: 'ts-loader'
       },
       {
         test: /\.css$/,
@@ -38,7 +46,7 @@ const configs = browsers.map(browser => ({
     ]
   },
   resolve: {
-    extensions: ['.js', '.jsx']
+    extensions: ['.js', '.jsx', '.ts']
   },
   plugins: [
     new webpack.DefinePlugin({

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Section, InputGroup, SaveButton } from '../common';
-import { SimpleTTS } from '../../../services/index.js';
+import { SimpleTTS } from '../../../services/ttsService';
 
 // Icons
 const EyeIcon = ({ isVisible }) => (

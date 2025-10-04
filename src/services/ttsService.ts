@@ -1,16 +1,24 @@
-import { VoiceSettings, GroupedVoices, LanguageVoiceSettings } from "../types/storage.ts";
+import { AudioService } from "./audioService";
 import browser from "webextension-polyfill";
+
+interface VoiceSettings {
+  voice?: string;
+  rate?: number;
+  pitch?: number;
+}
 
 export class TTSService {
   private azureKey: string;
   private azureRegion: string;
   private baseUrl: string | null;
+  private audioService: AudioService;
 
   constructor(azureKey?: string, azureRegion?: string) {
     this.azureKey = azureKey || '';
     this.azureRegion = azureRegion || '';
     this.baseUrl = azureRegion ?
       `https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1` : null;
+    this.audioService = new AudioService();
   }
 
   setCredentials(azureKey: string, azureRegion: string): void {
@@ -40,7 +48,151 @@ export class TTSService {
     </voice></speak>`.trim();
   }
 
-  async createStreamingResponse(text, settings = {}) {
+  async synthesizeSpeech(text: string, settings: VoiceSettings = {}): Promise<Blob> {
+    const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+    const ssml = this.createSSML(text, settings.voice, settings.rate || 1, pitchPercent);
+
+    return await this.synthesizeStreaming(ssml);
+  }
+
+  async stopAudio(): Promise<void> {
+    return await this.audioService.stopAudio();
+  }
+
+  getAudioFormat(): { audioFormat: string; mimeType: string } {
+    return {
+      audioFormat: 'webm-24khz-16bit-mono-opus',
+      mimeType: 'audio/webm; codecs="opus"'
+    };
+  }
+
+  async synthesizeStreaming(ssml: string): Promise<Blob> {
+    if (!this.azureKey || !this.azureRegion) {
+      throw new Error("Azure credentials not configured");
+    }
+
+    const { audioFormat, mimeType } = this.getAudioFormat();
+
+    const response = await fetch(this.baseUrl!, {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': this.azureKey,
+        'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': audioFormat
+      },
+      body: ssml
+    });
+
+    if (!response.ok) {
+      throw new Error(`Speech synthesis failed (${response.status}): ${response.statusText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return new Blob([arrayBuffer], { type: mimeType });
+  }
+
+  async playText(text: string, userSettings: VoiceSettings = {}): Promise<void> {
+    await this.audioService.stopAudio();
+    const finalSettings = await this.getVoiceSettings(text, userSettings);
+    return await this.playTextWithStreaming(text, finalSettings);
+  }
+
+  async playTextWithStreaming(text: string, settings: VoiceSettings = {}): Promise<void> {
+    const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+    const ssml = this.createSSML(text, settings.voice, settings.rate || 1, pitchPercent);
+
+    const { audioFormat, mimeType } = this.getAudioFormat();
+
+    const response = await fetch(this.baseUrl!, {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': this.azureKey,
+        'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': audioFormat
+      },
+      body: ssml
+    });
+
+    if (!response.ok) {
+      throw new Error(`Speech synthesis failed (${response.status}): ${response.statusText}`);
+    }
+
+    // Create audio element and play directly
+    const audio = new Audio();
+    audio.playbackRate = settings.rate || 1;
+
+    const arrayBuffer = await response.arrayBuffer();
+    const blob = new Blob([arrayBuffer], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+
+    audio.src = url;
+    await audio.play();
+
+    return new Promise((resolve) => {
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+    });
+  }
+
+  async playTextWithTrueStreaming(text: string, userSettings: VoiceSettings = {}, onProgress: ((progress: any) => void) | null = null): Promise<void> {
+    await this.audioService.stopAudio();
+    const finalSettings = await this.getVoiceSettings(text, userSettings);
+
+    try {
+      const response = await this.createStreamingResponse(text, finalSettings);
+      return await this.audioService.playStreamingResponse(response, finalSettings.rate || 1, onProgress);
+    } catch (error) {
+      console.error('Streaming playback failed:', error);
+      throw error;
+    }
+  }
+
+  async playTextSequential(text: string, userSettings: VoiceSettings = {}): Promise<void> {
+    await this.audioService.stopAudio();
+    const finalSettings = await this.getVoiceSettings(text, userSettings);
+
+    const segments = text.split(/\n+/).filter(segment => segment.trim().length > 0);
+
+    if (segments.length === 0) {
+      throw new Error('No text to speak');
+    }
+
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i].trim();
+      if (segment) {
+        try {
+          const response = await this.createStreamingResponse(segment, finalSettings);
+          await this.audioService.playStreamingResponse(response, finalSettings.rate || 1);
+
+          if (i < segments.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        } catch (error) {
+          console.error(`Error playing segment ${i + 1}:`, error);
+          throw new Error(`Speech synthesis failed to generate audio`);
+        }
+      }
+    }
+  }
+
+  async getStreamingUrl(text: string, settings: VoiceSettings = {}): Promise<string> {
+    const pitchPercent = ((settings.pitch || 1) - 1) * 100;
+    const ssml = this.createSSML(text, settings.voice, settings.rate || 1, pitchPercent);
+
+    const { audioFormat } = this.getAudioFormat();
+
+    const requestBody = new URLSearchParams({
+      ssml: ssml,
+      format: audioFormat
+    });
+
+    const streamEndpoint = `${this.baseUrl}/stream`;
+    return `${streamEndpoint}?${requestBody}`;
+  }
+
+  async createStreamingResponse(text: string, settings: VoiceSettings = {}): Promise<Response> {
     if (!this.azureKey || !this.azureRegion) {
       throw new Error("Azure credentials not configured");
     }
@@ -48,13 +200,15 @@ export class TTSService {
     const pitchPercent = ((settings.pitch || 1) - 1) * 100;
     const ssml = this.createSSML(text, settings.voice, settings.rate || 1, pitchPercent);
 
+    const { audioFormat } = this.getAudioFormat();
+
     try {
-      const response = await fetch(this.baseUrl, {
+      const response = await fetch(this.baseUrl!, {
         method: 'POST',
         headers: {
           'Ocp-Apim-Subscription-Key': this.azureKey,
           'Content-Type': 'application/ssml+xml',
-          'X-Microsoft-OutputFormat': 'webm-24khz-16bit-mono-opus',
+          'X-Microsoft-OutputFormat': audioFormat
         },
         body: ssml
       });
@@ -82,21 +236,24 @@ export class TTSService {
       }
 
       return response;
-    } catch (error) {
-      if (error.message.includes('fetch')) {
+    } catch (error: any) {
+      if (error.message?.includes('fetch')) {
         throw new Error(`Network error: Check your internet connection`);
       }
       throw error;
     }
   }
 
-  async getSettings() {
-    const { settings, languageVoiceSettings } = await browser.storage.local.get([
+  async getSettings(): Promise<{ settings: any; languageVoiceSettings: any }> {
+    const result = await browser.storage.local.get([
       "settings",
       "languageVoiceSettings",
-    ]);
+    ]) as { settings?: any; languageVoiceSettings?: any };
 
-    if (settings.azureKey !== this.azureKey || settings.azureRegion !== this.azureRegion) {
+    const settings = result.settings;
+    const languageVoiceSettings = result.languageVoiceSettings;
+
+    if (settings?.azureKey !== this.azureKey || settings?.azureRegion !== this.azureRegion) {
       this.azureKey = settings.azureKey;
       this.azureRegion = settings.azureRegion;
       this.baseUrl = `https://${settings.azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
@@ -105,10 +262,10 @@ export class TTSService {
     return { settings, languageVoiceSettings };
   }
 
-  async getVoiceSettings(text, userSettings = {}) {
+  async getVoiceSettings(text: string, userSettings: VoiceSettings = {}): Promise<VoiceSettings> {
     const { languageVoiceSettings } = await this.getSettings();
 
-    let languageSettings;
+    let languageSettings: VoiceSettings;
     if (languageVoiceSettings && languageVoiceSettings['default']) {
       languageSettings = languageVoiceSettings['default'];
     } else {
@@ -127,8 +284,7 @@ export class TTSService {
     };
   }
 
-
-  async getVoicesList() {
+  async getVoicesList(): Promise<any> {
     if (!this.azureKey || !this.azureRegion) {
       throw new Error("Azure credentials not configured");
     }
@@ -150,7 +306,7 @@ export class TTSService {
 
     const voices = await response.json();
 
-    const groupedVoices = voices.reduce((acc, voice) => {
+    const groupedVoices = voices.reduce((acc: any, voice: any) => {
       const locale = voice.Locale;
       if (!acc[locale]) {
         acc[locale] = [];
@@ -170,5 +326,42 @@ export class TTSService {
 
     return groupedVoices;
   }
+}
 
+// SimpleTTS wrapper class for backward compatibility
+export class SimpleTTS {
+  private ttsService: TTSService;
+
+  constructor(azureKey?: string, azureRegion?: string) {
+    this.ttsService = new TTSService(azureKey, azureRegion);
+  }
+
+  async stopAudio(): Promise<void> {
+    return await this.ttsService.stopAudio();
+  }
+
+  async playText(text: string, userSettings: VoiceSettings = {}): Promise<void> {
+    return await this.ttsService.playText(text, userSettings);
+  }
+
+  async playTextWithTrueStreaming(text: string, userSettings: VoiceSettings = {}, onProgress: ((progress: any) => void) | null = null): Promise<void> {
+    return await this.ttsService.playTextWithTrueStreaming(text, userSettings, onProgress);
+  }
+
+  async playTextSequential(text: string, userSettings: VoiceSettings = {}): Promise<void> {
+    return await this.ttsService.playTextSequential(text, userSettings);
+  }
+
+  async synthesizeSpeech(text: string, userSettings: VoiceSettings = {}): Promise<Blob> {
+    const finalSettings = await this.ttsService.getVoiceSettings(text, userSettings);
+    return await this.ttsService.synthesizeSpeech(text, finalSettings);
+  }
+
+  async getVoicesList(): Promise<any> {
+    return await this.ttsService.getVoicesList();
+  }
+
+  async createStreamingResponse(text: string, settings: VoiceSettings = {}): Promise<Response> {
+    return await this.ttsService.createStreamingResponse(text, settings);
+  }
 }

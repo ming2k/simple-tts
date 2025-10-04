@@ -1,5 +1,5 @@
 import browser from "webextension-polyfill";
-import { SimpleTTS } from "../services/index.js";
+import { SimpleTTS } from "../services/ttsService";
 
 console.log("[Simple TTS] Background script loaded/reloaded");
 

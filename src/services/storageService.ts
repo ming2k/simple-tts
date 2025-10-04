@@ -9,7 +9,7 @@ import {
   defaultVoiceSettings,
   isTTSSettings,
   isLanguageVoiceSettings
-} from '../types/storage.ts';
+} from '../types/storage';
 
 /**
  * Service for managing browser.storage.local and localStorage data

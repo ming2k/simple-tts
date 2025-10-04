@@ -11,7 +11,7 @@ import { Document } from "./components/tabs/Document";
 import { Sponsor } from "./components/tabs/Sponsor";
 import { About } from "./components/tabs/About";
 import "./settings.css";
-import { SimpleTTS } from "../services/index.js";
+import { SimpleTTS } from "../services/ttsService";
 import { AudioSettings } from "./components/tabs/AudioSettings";
 
 function Settings() {

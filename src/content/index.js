@@ -1,6 +1,6 @@
 import browser from "webextension-polyfill";
-import { AudioPlayer } from "../services/audioPlayer.js";
-import { TTSService } from "../services/ttsService.js";
+import { AudioService } from "../services/audioService";
+import { TTSService } from "../services/ttsService";
 
 console.log("[Simple TTS] Content script loaded/reloaded");
 
@@ -430,7 +430,7 @@ let lastPlaybackRequest = null;
 
 function getStreamingAudioPlayer() {
   if (!streamingAudioPlayer) {
-    streamingAudioPlayer = new AudioPlayer();
+    streamingAudioPlayer = new AudioService();
 
     // Connect to mini-window controls
     const originalStopAudio = streamingAudioPlayer.stopAudio.bind(streamingAudioPlayer);

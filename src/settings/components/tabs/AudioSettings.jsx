@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Section, SaveButton } from '../common';
 import styled from 'styled-components';
 import browser from 'webextension-polyfill';
-import { SimpleTTS } from '../../../services/index.js';
+import { SimpleTTS } from '../../../services/ttsService';
 
 const AudioContainer = styled.div`
   display: flex;
