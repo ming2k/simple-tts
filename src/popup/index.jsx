@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { SimpleTTS } from "../services/ttsService";
+import { TTSService } from "../services/ttsService";
+import { AudioService } from "../services/audioService";
 import { Header } from "./components/Header";
 import { TextInput } from "./components/TextInput";
 import { ControlDashboard } from "./components/ControlDashboard.jsx";
@@ -16,7 +17,7 @@ function Popup() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [status, setStatus] = useState("");
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
-  const [ttsInstance, setTtsInstance] = useState(null);
+  const [audioService] = useState(() => new AudioService());
 
   useEffect(() => {
     browser.storage.local
@@ -43,10 +44,7 @@ function Popup() {
 
     try {
       if (isSpeaking) {
-        if (ttsInstance) {
-          await ttsInstance.stopAudio();
-          setTtsInstance(null);
-        }
+        await audioService.stopAudio();
         setIsSpeaking(false);
         setStatus("");
         return;
@@ -55,7 +53,10 @@ function Popup() {
       setIsSpeaking(true);
       setStatus("Generating speech...");
 
-      const { settings } = await browser.storage.local.get("settings");
+      const { settings, languageVoiceSettings } = await browser.storage.local.get([
+        "settings",
+        "languageVoiceSettings"
+      ]);
 
       if (!settings?.azureKey || !settings?.azureRegion) {
         throw new Error(
@@ -63,36 +64,55 @@ function Popup() {
         );
       }
 
-      const tts = new SimpleTTS(settings.azureKey, settings.azureRegion);
-      setTtsInstance(tts);
+      const ttsService = new TTSService();
+      ttsService.setCredentials(settings.azureKey, settings.azureRegion);
 
-      // Use sequential processing with line break support
-      await tts.playTextSequential(text, {
-        voice: settings.voice,
-        rate: settings.rate,
-        pitch: settings.pitch,
-      });
+      const voiceSettings = languageVoiceSettings?.default || {};
+      const finalSettings = {
+        voice: settings.voice || voiceSettings.voice || "en-US-JennyNeural",
+        rate: settings.rate || voiceSettings.rate || 1,
+        pitch: settings.pitch || voiceSettings.pitch || 1,
+      };
+
+      // Split text by newlines for sequential playback
+      const segments = text.split(/\n+/).filter(segment => segment.trim().length > 0);
+
+      if (segments.length === 0) {
+        throw new Error('No text to speak');
+      }
+
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i].trim();
+        if (segment) {
+          const streamingResponse = await ttsService.createStreamingResponse(
+            segment,
+            finalSettings
+          );
+
+          await audioService.playStreamingResponse(
+            streamingResponse,
+            finalSettings.rate || 1
+          );
+
+          if (i < segments.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        }
+      }
 
       setStatus("");
       setIsSpeaking(false);
-      setTtsInstance(null);
     } catch (error) {
       console.error("TTS error:", error);
       setStatus(`Error: ${error.message}`);
       setIsSpeaking(false);
-      if (ttsInstance) {
-        await ttsInstance.stopAudio();
-        setTtsInstance(null);
-      }
+      await audioService.stopAudio();
     }
   };
 
   const handleStop = async () => {
     try {
-      if (ttsInstance) {
-        await ttsInstance.stopAudio();
-        setTtsInstance(null);
-      }
+      await audioService.stopAudio();
       setIsSpeaking(false);
       setStatus("");
     } catch (error) {

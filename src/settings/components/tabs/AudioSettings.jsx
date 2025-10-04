@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Section, SaveButton } from '../common';
 import styled from 'styled-components';
 import browser from 'webextension-polyfill';
-import { SimpleTTS } from '../../../services/ttsService';
+import { TTSService } from '../../../services/ttsService';
+import { AudioService } from '../../../services/audioService';
 
 const AudioContainer = styled.div`
   display: flex;
@@ -222,6 +223,7 @@ export function AudioSettings({
     pitch: 1.0
   });
   const [isPlaying, setIsPlaying] = useState(false);
+  const [audioService] = useState(() => new AudioService());
 
   // Load saved settings
   useEffect(() => {
@@ -279,7 +281,8 @@ export function AudioSettings({
       }
 
       // Create TTS service with current settings
-      const ttsService = new SimpleTTS(apiSettings.azureKey, apiSettings.azureRegion);
+      const ttsService = new TTSService();
+      ttsService.setCredentials(apiSettings.azureKey, apiSettings.azureRegion);
 
       // Test voice with current settings
       const testText = 'Hello! This is a test of your selected voice settings.';
@@ -289,7 +292,9 @@ export function AudioSettings({
         pitch: voiceSettings.pitch
       };
 
-      await ttsService.playTextSequential(testText, testSettings);
+      const streamingResponse = await ttsService.createStreamingResponse(testText, testSettings);
+      await audioService.playStreamingResponse(streamingResponse, testSettings.rate || 1);
+
       setIsPlaying(false);
     } catch (error) {
       setIsPlaying(false);

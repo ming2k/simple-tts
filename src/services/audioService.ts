@@ -89,7 +89,10 @@ export class AudioService {
             try {
               mediaSource.endOfStream();
             } catch (e: any) {
-              console.warn('Failed to end MediaSource stream:', e.message);
+              // Silently ignore - MediaSource state might have changed
+              if (e.name !== 'InvalidStateError') {
+                console.warn('Failed to end MediaSource stream:', e.message);
+              }
             }
           }
           break;
@@ -253,22 +256,17 @@ export class AudioService {
     // Clean up MediaSource
     if (mediaSource) {
       try {
-        // Check current state before attempting operations
+        // Only attempt cleanup if MediaSource is still open
         if (mediaSource.readyState === 'open') {
-          // Close any source buffers first
-          for (let i = 0; i < mediaSource.sourceBuffers.length; i++) {
-            const buffer = mediaSource.sourceBuffers[i];
-            if (buffer && !buffer.updating) {
-              try {
-                mediaSource.removeSourceBuffer(buffer);
-              } catch (removeError: any) {
-                console.warn('Failed to remove source buffer:', removeError.message);
-              }
+          try {
+            // End the stream first before removing buffers
+            mediaSource.endOfStream();
+          } catch (endError: any) {
+            // endOfStream might fail if already ended or in invalid state
+            if (endError.name !== 'InvalidStateError') {
+              console.warn('Failed to end MediaSource stream:', endError.message);
             }
           }
-
-          // End the stream
-          mediaSource.endOfStream();
         }
       } catch (e: any) {
         // MediaSource might already be closed or in invalid state

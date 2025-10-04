@@ -106,7 +106,7 @@ export function Sponsor() {
           </SponsorButton>
           
           <SponsorButton 
-            href="https://buymeacoffee.com/mingmillenx"
+            href="https://buymeacoffee.com/ming2k"
             target="_blank" 
             rel="noopener noreferrer"
             className="coffee"
