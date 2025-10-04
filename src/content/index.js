@@ -84,15 +84,14 @@ function createMiniWindow() {
     bottom: ${savedPosition.bottom || "20px"};
     right: ${savedPosition.right || "20px"};
     background: var(--tts-bg-primary);
-    padding: 2px 4px;
-    border-radius: 12px;
+    padding: 3px 5px;
+    border-radius: 15px;
     box-shadow: 0 2px 12px var(--tts-shadow);
     display: none;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: 3px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
-    border: 1px solid var(--tts-border);
     z-index: 2147483647;
     cursor: move;
     user-select: none;
@@ -100,9 +99,9 @@ function createMiniWindow() {
     transform: ${savedPosition.transform || "none"};
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    min-height: 24px;
-    min-width: 50px;
-    max-width: 80px;
+    min-height: 30px;
+    min-width: 62px;
+    max-width: 100px;
     transition: all 0.2s ease;
     will-change: transform;
     contain: layout style paint;
@@ -199,8 +198,8 @@ function createMiniWindow() {
 
   // Base style for all icons (uniform size and styling)
   const iconBaseStyle = `
-    width: 20px;
-    height: 20px;
+    width: 25px;
+    height: 25px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -216,7 +215,7 @@ function createMiniWindow() {
 
   // Extension logo SVG - exact match with extension icon but without background
   logoContainer.innerHTML = `
-    <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+    <svg width="23" height="23" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
       <text x="24" y="32" font-family="Arial" font-size="32" fill="var(--tts-text-accent)" text-anchor="middle">T</text>
       <path d="M14,16 L34,16" stroke="var(--tts-text-accent)" stroke-width="2"/>
       <path d="M18,36 L30,36" stroke="var(--tts-text-accent)" stroke-width="2"/>
@@ -240,7 +239,7 @@ function createMiniWindow() {
     -webkit-tap-highlight-color: transparent;
   `;
   replayButton.innerHTML = `
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M8 5v14l11-7z" fill="currentColor"/>
     </svg>
   `;
@@ -250,7 +249,7 @@ function createMiniWindow() {
   const closeButton = document.createElement("button");
   closeButton.style.cssText = replayButton.style.cssText;
   closeButton.innerHTML = `
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   `;
@@ -355,7 +354,7 @@ function createMiniWindow() {
     updateStatus(isPlaying) {
       if (isPlaying) {
         replayButton.innerHTML = `
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/>
             <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>
           </svg>
@@ -363,19 +362,15 @@ function createMiniWindow() {
         replayButton.title = "Pause";
         container.style.background = "var(--tts-bg-secondary)";
         container.style.boxShadow = "0 6px 20px var(--tts-shadow-active)";
-        container.style.borderColor = "var(--tts-text-accent)";
-        container.style.borderWidth = "1.5px";
       } else {
         replayButton.innerHTML = `
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M8 5v14l11-7z" fill="currentColor"/>
           </svg>
         `;
         replayButton.title = "Play/Replay";
         container.style.background = "var(--tts-bg-primary)";
         container.style.boxShadow = "0 4px 16px var(--tts-shadow)";
-        container.style.borderColor = "var(--tts-border)";
-        container.style.borderWidth = "1px";
       }
     },
     updatePlayButton(isPlaying) {
