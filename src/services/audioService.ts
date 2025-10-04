@@ -1,8 +1,12 @@
 export class AudioService {
   private currentAudio: HTMLAudioElement | null = null;
   private currentMediaSource: MediaSource | null = null;
+  private isStopping: boolean = false;
 
   async stopAudio(): Promise<void> {
+    // Set stopping flag to prevent error propagation
+    this.isStopping = true;
+
     // Store references to avoid race conditions
     const audio = this.currentAudio;
     const mediaSource = this.currentMediaSource;
@@ -17,6 +21,9 @@ export class AudioService {
 
   async playStreamingResponse(response: Response, rate: number = 1, onProgress: ((progress: any) => void) | null = null): Promise<void> {
     await this.stopAudio();
+
+    // Reset stopping flag for new playback
+    this.isStopping = false;
 
     if (!window.MediaSource) {
       return this.playBlobFallback(response, rate, onProgress);
@@ -38,8 +45,11 @@ export class AudioService {
       });
 
       audio.onerror = () => {
-        this.cleanup(audio, mediaSource);
-        reject(new Error('Audio playback failed'));
+        // Don't reject if we're intentionally stopping
+        if (!this.isStopping) {
+          this.cleanup(audio, mediaSource);
+          reject(new Error('Audio playback failed'));
+        }
       };
     });
   }
@@ -137,8 +147,10 @@ export class AudioService {
 
       return new Promise((resolve, reject) => {
         const timeoutId = setTimeout(() => {
-          this.cleanup(audio, mediaSource);
-          reject(new Error('Audio playback timeout'));
+          if (!this.isStopping) {
+            this.cleanup(audio, mediaSource);
+            reject(new Error('Audio playback timeout'));
+          }
         }, 30000); // 30 second timeout
 
         audio.onended = () => {
@@ -149,8 +161,15 @@ export class AudioService {
 
         audio.onerror = () => {
           clearTimeout(timeoutId);
-          this.cleanup(audio, mediaSource);
-          reject(new Error('Audio playback error'));
+          // Don't reject if we're intentionally stopping
+          if (!this.isStopping) {
+            this.cleanup(audio, mediaSource);
+            reject(new Error('Audio playback error'));
+          } else {
+            // Just resolve when stopping intentionally
+            this.cleanup(audio, mediaSource);
+            resolve();
+          }
         };
       });
 
@@ -193,10 +212,21 @@ export class AudioService {
       audio.onerror = () => {
         URL.revokeObjectURL(objectUrl);
         this.currentAudio = null;
-        reject(new Error('Audio playback failed'));
+        // Don't reject if we're intentionally stopping
+        if (!this.isStopping) {
+          reject(new Error('Audio playback failed'));
+        } else {
+          resolve();
+        }
       };
 
-      audio.play().catch(reject);
+      audio.play().catch((err) => {
+        if (!this.isStopping) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
     });
   }
 

@@ -172,6 +172,12 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
       } catch (error) {
         console.error("Failed to send PLAY_STREAMING_AUDIO message:", error);
 
+        // Don't retry if tab was closed
+        if (error.message.includes('No tab with id') || error.message.includes('Invalid tab ID')) {
+          console.log("Tab was closed, skipping retry");
+          return;
+        }
+
         // Handle specific error cases
         if (error.message.includes('Could not establish connection')) {
           console.log("Connection failed, attempting content script injection...");
@@ -183,50 +189,68 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
           return;
         }
 
-        // Try to inject content script and retry
-        try {
-          await ensureContentScriptLoaded(activeTab.id);
-          const response = await browser.tabs.sendMessage(activeTab.id, {
-            type: "PLAY_STREAMING_TTS",
-            text: info.selectionText,
-            settings: {
-              voice: settings.voice,
-              rate: settings.rate,
-              pitch: settings.pitch,
-            },
-            credentials: {
-              azureKey: settings.azureKey,
-              azureRegion: settings.azureRegion,
+        // Only retry if tab still exists
+        if (!error.message.includes('No tab with id') && !error.message.includes('Invalid tab ID')) {
+          try {
+            // Verify tab still exists before injecting
+            await browser.tabs.get(activeTab.id);
+            await ensureContentScriptLoaded(activeTab.id);
+            const response = await browser.tabs.sendMessage(activeTab.id, {
+              type: "PLAY_STREAMING_TTS",
+              text: info.selectionText,
+              settings: {
+                voice: settings.voice,
+                rate: settings.rate,
+                pitch: settings.pitch,
+              },
+              credentials: {
+                azureKey: settings.azureKey,
+                azureRegion: settings.azureRegion,
+              }
+            });
+            console.log("PLAY_STREAMING_TTS response after injection:", response);
+          } catch (retryError) {
+            console.error("Retry failed:", retryError);
+
+            // Don't show notification if tab was closed
+            if (retryError.message.includes('No tab with id') || retryError.message.includes('Invalid tab ID')) {
+              console.log("Tab was closed during retry, skipping error notification");
+              return;
             }
-          });
-          console.log("PLAY_STREAMING_TTS response after injection:", response);
-        } catch (retryError) {
-          console.error("Retry failed:", retryError);
 
-          // More specific error messages based on error type
-          let errorMessage = "Could not communicate with content script.";
-          let errorTitle = "TTS Playback Error";
+            // More specific error messages based on error type
+            let errorMessage = "Could not communicate with content script.";
+            let errorTitle = "TTS Playback Error";
 
-          if (retryError.message.includes('Could not establish connection')) {
-            errorMessage = "Content script not loaded. Please refresh the page and try again.";
-          } else if (retryError.message.includes('Cannot inject into system pages')) {
-            errorMessage = "TTS cannot be used on this page. Try selecting text on a regular webpage.";
-            errorTitle = "TTS Not Available";
-          } else if (retryError.message.includes('Extension context invalidated')) {
-            errorMessage = "Extension needs to be reloaded. Please refresh the page.";
+            if (retryError.message.includes('Could not establish connection')) {
+              errorMessage = "Content script not loaded. Please refresh the page and try again.";
+            } else if (retryError.message.includes('Cannot inject into system pages')) {
+              errorMessage = "TTS cannot be used on this page. Try selecting text on a regular webpage.";
+              errorTitle = "TTS Not Available";
+            } else if (retryError.message.includes('Extension context invalidated')) {
+              errorMessage = "Extension needs to be reloaded. Please refresh the page.";
+            }
+
+            await showNotification(errorTitle, errorMessage);
           }
-
-          await showNotification(errorTitle, errorMessage);
         }
       }
     } catch (error) {
       console.error("TTS error:", error);
+
+      // Don't show notification if tab was closed
+      if (error.message.includes('No tab with id') || error.message.includes('Invalid tab ID')) {
+        console.log("Tab was closed during TTS operation");
+        return;
+      }
+
       await showNotification(
         "Text-to-Speech Error",
         `Failed to convert text to speech: ${error.message}`,
       );
-      // Hide the window if there's an error
+      // Hide the window if there's an error and tab still exists
       try {
+        await browser.tabs.get(activeTab.id);
         await browser.tabs.sendMessage(activeTab.id, { type: "STOP_AUDIO" });
       } catch (err) {
         console.log("Could not send STOP_AUDIO message to tab:", err.message);
@@ -292,11 +316,19 @@ async function ensureContentScriptLoaded(tabId) {
 
     // For Chrome/Chromium, try to inject the content script if not already loaded
     if (typeof browser.scripting !== 'undefined') {
-      await browser.scripting.executeScript({
-        target: { tabId: tabId },
-        files: ['content.js']
-      });
-      console.log("Content script injected for tab:", tabId);
+      try {
+        await browser.scripting.executeScript({
+          target: { tabId: tabId },
+          files: ['content.js']
+        });
+        console.log("Content script injected for tab:", tabId);
+      } catch (scriptError) {
+        // Check if tab was closed during injection
+        if (scriptError.message.includes('No tab with id') || scriptError.message.includes('Invalid tab ID')) {
+          throw new Error(`Tab ${tabId} was closed during script injection.`);
+        }
+        throw scriptError;
+      }
 
       // Wait a moment for script to initialize
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -311,6 +343,10 @@ async function ensureContentScriptLoaded(tabId) {
           throw new Error('Content script not responding after injection');
         }
       } catch (verifyError) {
+        // Check if tab was closed during verification
+        if (verifyError.message.includes('No tab with id') || verifyError.message.includes('Invalid tab ID')) {
+          throw new Error(`Tab ${tabId} was closed during verification.`);
+        }
         throw new Error(`Content script injection failed verification: ${verifyError.message}`);
       }
     } else {
