@@ -8,7 +8,7 @@
     "16": "assets/icons/icon-48.png",
     "32": "assets/icons/icon-48.png",
     "48": "assets/icons/icon-48.png",
-    "128": "assets/icons/icon-96.png"
+    "128": "assets/icons/icon-128.png"
   },
   "permissions": [
     "storage",
@@ -25,7 +25,7 @@
       "16": "assets/icons/icon-48.png",
       "32": "assets/icons/icon-48.png",
       "48": "assets/icons/icon-48.png",
-      "128": "assets/icons/icon-96.png"
+      "128": "assets/icons/icon-128.png"
     },
     "default_popup": "popup.html",
     "default_title": "__MSG_extName__"
