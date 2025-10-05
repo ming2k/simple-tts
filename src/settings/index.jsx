@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
+import browser from "webextension-polyfill";
 import {
   SettingsContainer,
   SettingsLayout,

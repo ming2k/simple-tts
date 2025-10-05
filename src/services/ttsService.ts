@@ -119,6 +119,7 @@ export class TTSService {
 
     // Create audio element and play directly
     const audio = new Audio();
+    audio.className = 'simple-tts-audio';
     audio.playbackRate = settings.rate || 1;
 
     const arrayBuffer = await response.arrayBuffer();

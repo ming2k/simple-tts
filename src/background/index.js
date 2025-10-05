@@ -141,17 +141,30 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         settings.azureKey,
         settings.azureRegion,
       );
-      
-      // Stop any currently playing audio first
+
+      /**
+       * CRITICAL: Stop previous audio and clean up mini window BEFORE starting new playback
+       *
+       * WHY THIS MATTERS:
+       * - Each context menu click should create a fresh mini window
+       * - STOP_AUDIO removes the old mini window from DOM
+       * - PLAY_STREAMING_TTS creates a new mini window
+       * - Without this, multiple mini windows could appear on screen
+       *
+       * ERROR HANDLING:
+       * - If content script is not loaded, STOP_AUDIO will fail
+       * - We catch the error and inject content script for next step
+       * - This is safe because if no content script exists, there's no audio to stop
+       */
       try {
         await browser.tabs.sendMessage(activeTab.id, { type: "STOP_AUDIO" });
       } catch (err) {
         console.log("Could not send STOP_AUDIO message to tab:", err.message);
-        // Try to inject content script if it's not loaded
+        // Content script not loaded yet - inject it for the next step
         await ensureContentScriptLoaded(activeTab.id);
       }
 
-      // Use true streaming synthesis for context menu like popup does
+      // Send TTS request to content script
       console.log("Sending PLAY_STREAMING_TTS message to tab:", activeTab.id);
 
       try {
@@ -172,13 +185,25 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
       } catch (error) {
         console.error("Failed to send PLAY_STREAMING_AUDIO message:", error);
 
-        // Don't retry if tab was closed
+        /**
+         * IMPORTANT: Tab closure detection
+         *
+         * WHY CHECK FOR TAB CLOSURE:
+         * - User might close tab while TTS is being prepared
+         * - Attempting to inject or retry on a closed tab causes errors
+         * - Best to silently fail when tab is gone
+         */
         if (error.message.includes('No tab with id') || error.message.includes('Invalid tab ID')) {
           console.log("Tab was closed, skipping retry");
           return;
         }
 
-        // Handle specific error cases
+        /**
+         * Handle recoverable errors
+         *
+         * "Could not establish connection" = content script not loaded
+         * "Extension context invalidated" = extension was reloaded (non-recoverable)
+         */
         if (error.message.includes('Could not establish connection')) {
           console.log("Connection failed, attempting content script injection...");
         } else if (error.message.includes('Extension context invalidated')) {
@@ -189,7 +214,15 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
           return;
         }
 
-        // Only retry if tab still exists
+        /**
+         * RETRY PATTERN: One automatic retry with content script injection
+         *
+         * STEPS:
+         * 1. Verify tab still exists
+         * 2. Inject content script
+         * 3. Retry sending PLAY_STREAMING_TTS message
+         * 4. If this fails, show user-friendly error message
+         */
         if (!error.message.includes('No tab with id') && !error.message.includes('Invalid tab ID')) {
           try {
             // Verify tab still exists before injecting

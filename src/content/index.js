@@ -4,7 +4,12 @@ import { createTTSStream } from "../utils/audioPlayer";
 
 console.log("[Simple TTS] Content script loaded/reloaded");
 
-// Create floating mini window
+/**
+ * Create floating mini window with draggable controls
+ *
+ * This function creates a draggable mini window UI for TTS playback controls.
+ * The window persists its position in localStorage and supports both mouse and touch events.
+ */
 function createMiniWindow() {
   // Try to get saved position from storage
   let savedPosition = {};
@@ -239,8 +244,8 @@ function createMiniWindow() {
     -webkit-tap-highlight-color: transparent;
   `;
   replayButton.innerHTML = `
-    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M8 5v14l11-7z" fill="currentColor"/>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5 3l14 9-14 9V3z" fill="currentColor"/>
     </svg>
   `;
   replayButton.title = "Play/Replay";
@@ -250,7 +255,7 @@ function createMiniWindow() {
   closeButton.style.cssText = replayButton.style.cssText;
   closeButton.innerHTML = `
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   `;
   closeButton.title = "Close";
@@ -354,7 +359,7 @@ function createMiniWindow() {
     updateStatus(isPlaying, hasEnded = false) {
       if (isPlaying) {
         replayButton.innerHTML = `
-          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/>
             <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>
           </svg>
@@ -363,11 +368,10 @@ function createMiniWindow() {
         container.style.background = "var(--tts-bg-secondary)";
         container.style.boxShadow = "0 6px 20px var(--tts-shadow-active)";
       } else if (hasEnded) {
-        // Show replay icon when audio has ended
+        // Show refresh icon when audio has ended
         replayButton.innerHTML = `
-          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M4 12a8 8 0 0 1 14.93-4M20 12a8 8 0 0 1-14.93 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M18 8l.94.94L20 8l-1.06-.94L18 8zM4 16l-1.06.94L2 16l.94-.94L4 16z" fill="currentColor"/>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         `;
         replayButton.title = "Replay";
@@ -375,8 +379,8 @@ function createMiniWindow() {
         container.style.boxShadow = "0 4px 16px var(--tts-shadow)";
       } else {
         replayButton.innerHTML = `
-          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M8 5v14l11-7z" fill="currentColor"/>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 3l14 9-14 9V3z" fill="currentColor"/>
           </svg>
         `;
         replayButton.title = "Play";
@@ -387,10 +391,22 @@ function createMiniWindow() {
   };
 }
 
-// Initialize mini window with streaming audio player
+/**
+ * Initialize mini window and clean up any stale state
+ *
+ * IMPORTANT: This function is called on extension load/reload and when starting TTS.
+ * It ensures that:
+ * 1. Old mini windows from previous extension loads are removed (prevents duplicates)
+ * 2. Orphaned audio elements are cleaned up (prevents memory leaks and "ended" event issues)
+ * 3. State is reset to prevent conflicts
+ *
+ * WARNING: Always clean up orphaned audio elements BEFORE creating new ones, otherwise
+ * the "ended" event may not fire correctly after extension reload.
+ */
 function initAudioPlayer() {
   try {
-    // Clean up any existing mini-window from previous extension loads (Firefox reload issue)
+    // Clean up any existing mini-window from previous extension loads
+    // This happens when the extension is reloaded in Firefox/Chrome
     const existingMiniWindow = document.getElementById("tts-mini-window");
     if (existingMiniWindow) {
       console.log('[Simple TTS] Cleaning up old mini-window from previous load');
@@ -398,6 +414,19 @@ function initAudioPlayer() {
     }
     window.ttsMiniWindow = null;
     currentAudioElement = null;
+
+    // CRITICAL: Clean up orphaned audio elements from previous extension loads
+    // Without this, audio elements can continue playing without event listeners,
+    // causing the mini window to not recognize when audio has ended
+    const orphanedAudios = document.querySelectorAll('audio.simple-tts-audio');
+    if (orphanedAudios.length > 0) {
+      console.log('[Simple TTS] Cleaning up', orphanedAudios.length, 'orphaned audio elements');
+      orphanedAudios.forEach(audio => {
+        audio.pause();
+        audio.src = '';
+        audio.remove();
+      });
+    }
 
     // Prevent multiple initializations in the same context
     if (window.ttsMiniWindow) {
@@ -442,13 +471,32 @@ function initAudioPlayer() {
 // Initialize player when page loads
 initAudioPlayer();
 
-
-// Initialize streaming audio player for mini-window
+/**
+ * Global state management for TTS playback
+ *
+ * IMPORTANT: These variables maintain state across the entire content script lifecycle
+ *
+ * - streamingAudioPlayer: Singleton AudioService instance
+ *   WARNING: DO NOT create multiple instances - this will cause conflicts
+ *
+ * - currentAudioElement: Reference to the current HTML audio element
+ *   PURPOSE: Prevents duplicate event listener attachment
+ *   PATTERN: Check if new audio !== currentAudioElement before attaching listeners
+ *
+ * - lastPlaybackRequest: Cached TTS request (text, settings, credentials)
+ *   PURPOSE: Enables replay functionality without making new API calls
+ *   LIFECYCLE: Set on PLAY_STREAMING_TTS, cleared on STOP_AUDIO or close button
+ */
 let streamingAudioPlayer = null;
-let lastPlaybackRequest = null;
 let currentAudioElement = null;
+let lastPlaybackRequest = null;
 
-// Update UI based on AudioService state
+/**
+ * Update mini window UI based on AudioService state
+ *
+ * This function syncs the UI (play/pause/replay icons) with the actual audio playback state.
+ * Called after any state change: play, pause, resume, end, etc.
+ */
 function updateMiniWindowUI() {
   if (!window.ttsMiniWindow) return;
 
@@ -460,39 +508,70 @@ function updateMiniWindowUI() {
   window.ttsMiniWindow.updateStatus(isPlaying, hasEnded);
 }
 
-// Attach event listeners to audio element (called once per audio element)
+/**
+ * Attach event listeners to audio element
+ *
+ * CRITICAL: This function prevents duplicate event listener attachment
+ * by tracking the currentAudioElement reference.
+ *
+ * WHY THIS MATTERS:
+ * - Each AudioService.playStreamingResponse() creates a NEW audio element
+ * - Without tracking, we'd attach multiple listeners to the same element
+ * - Multiple listeners cause updateMiniWindowUI() to be called multiple times
+ *
+ * PATTERN:
+ * 1. Check if audio element exists
+ * 2. Check if it's the same as currentAudioElement (already has listeners)
+ * 3. If new audio, update currentAudioElement and attach listeners
+ *
+ * @param {AudioService} player - The audio service instance
+ * @returns {boolean} - true if listeners attached or already attached, false if no audio
+ */
 function attachAudioEventListeners(player) {
   const audio = player.getCurrentAudio();
   if (!audio) {
     console.log('[Simple TTS] attachAudioEventListeners - no audio element');
     return false;
   }
+
+  // IMPORTANT: Check if listeners are already attached to this audio element
   if (audio === currentAudioElement) {
     console.log('[Simple TTS] attachAudioEventListeners - already attached');
-    return true; // Already attached
+    return true;
   }
 
-  // Track current audio to prevent duplicate listeners
+  // Track current audio to prevent duplicate listeners on next call
   currentAudioElement = audio;
 
-  // Use named functions for listeners to enable proper cleanup
+  // Handler for all audio state changes (play, pause, ended)
   const handleStateChange = (event) => {
     console.log('[Simple TTS] Audio event:', event.type);
     updateMiniWindowUI();
   };
 
+  // Attach listeners for all state changes we care about
   audio.addEventListener('play', handleStateChange);
   audio.addEventListener('pause', handleStateChange);
   audio.addEventListener('ended', handleStateChange);
 
   console.log('[Simple TTS] Event listeners attached to new audio element');
 
-  // Initial update
+  // Initial UI update
   updateMiniWindowUI();
   return true;
 }
 
-// Attach listeners with retry (for when audio element is being created)
+/**
+ * Attach listeners with retry logic
+ *
+ * WHY RETRY IS NEEDED:
+ * The audio element is created asynchronously by MediaSource API.
+ * We may try to attach listeners before the audio element is ready.
+ *
+ * @param {AudioService} player - The audio service instance
+ * @param {number} maxRetries - Maximum retry attempts (default: 5)
+ * @returns {Promise<boolean>} - true if successful, false if all retries failed
+ */
 async function attachAudioEventListenersWithRetry(player, maxRetries = 5) {
   for (let i = 0; i < maxRetries; i++) {
     if (attachAudioEventListeners(player)) {
@@ -501,7 +580,6 @@ async function attachAudioEventListenersWithRetry(player, maxRetries = 5) {
     await new Promise(resolve => setTimeout(resolve, 20));
   }
   console.warn('Failed to attach audio event listeners after retries');
-  // Update UI anyway
   updateMiniWindowUI();
   return false;
 }
@@ -596,33 +674,54 @@ browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) =>
 
       case "PLAY_STREAMING_TTS": {
         try {
-          // Step 1: Ensure mini window exists and is shown FIRST
+          /**
+           * IMPORTANT: Initialization order matters!
+           *
+           * Step 1: Ensure mini window exists BEFORE starting playback
+           * - initAudioPlayer() cleans up old windows and orphaned audio
+           * - Must happen first to prevent conflicts
+           */
           if (!window.ttsMiniWindow || !document.getElementById("tts-mini-window")) {
             initAudioPlayer();
           }
 
-          // Show mini-window when user first calls TTS
+          // Show mini-window in the DOM
           const miniWindow = document.getElementById("tts-mini-window");
           if (miniWindow) {
             miniWindow.style.display = "flex";
           }
 
-          // Step 2: Wait for mini-window to be ready in DOM and update initial UI
+          /**
+           * Step 2: Wait for DOM to be ready
+           * The 50ms delay ensures the mini window is fully rendered before
+           * we start attaching event listeners and updating UI
+           */
           await new Promise(resolve => setTimeout(resolve, 50));
           updateMiniWindowUI();
 
-          // Step 3: Save request for replay functionality
+          /**
+           * Step 3: Cache request for replay functionality
+           * This allows the replay button to work without making a new API call
+           * NOTE: Cleared on STOP_AUDIO or close button click
+           */
           lastPlaybackRequest = {
             text: request.text,
             settings: request.settings,
             credentials: request.credentials
           };
 
-          // Step 4: Now play audio with UI ready
+          /**
+           * Step 4: Start audio playback
+           * playAudioFromRequest() will:
+           * - Create TTS stream
+           * - Start playback
+           * - Attach event listeners with retry
+           */
           try {
             await playAudioFromRequest(lastPlaybackRequest);
             return { success: true };
           } catch (playError) {
+            // NotAllowedError = browser blocked autoplay (requires user interaction)
             if (playError.name === 'NotAllowedError') {
               updateMiniWindowUI();
               return { success: true, requiresUserInteraction: true };
@@ -636,12 +735,20 @@ browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) =>
       }
 
       case "STOP_AUDIO": {
+        // CRITICAL: Complete cleanup sequence to prevent memory leaks and stale state
         const player = getStreamingAudioPlayer();
         await player.stopAudio();
         player.clearCache();
-        currentAudioElement = null;
-        lastPlaybackRequest = null;
-        updateMiniWindowUI();
+
+        // IMPORTANT: Reset tracking variables to prevent stale references
+        currentAudioElement = null;  // Clear event listener tracking
+        lastPlaybackRequest = null;  // Clear replay cache
+
+        // Remove mini window from DOM (prevents duplicate windows on next play)
+        if (window.ttsMiniWindow) {
+          window.ttsMiniWindow.container.remove();
+          window.ttsMiniWindow = null;
+        }
         break;
       }
 

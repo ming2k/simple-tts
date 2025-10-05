@@ -1,45 +1,81 @@
 /**
- * AudioService - Manages audio playback with MediaSource API
+ * AudioService - Manages audio playback with MediaSource API for streaming TTS
  *
- * States: None → Playing ⇄ Paused → Ended → (replay) Playing
- *         Any state → stopAudio() → None
+ * State Machine:
+ *   None → Playing ⇄ Paused → Ended → (replay) Playing
+ *   Any state → stopAudio() → None
  *
- * Methods:
- * - playStreamingResponse(): Start playback (clears cache, stops current)
- * - replayFromCache():      Replay from cached chunks (no new request)
- * - pauseAudio/resumeAudio: Pause/resume playback
- * - stopAudio():            Stop audio (keeps cache), clearCache() to clear
- * - isPlaying/isPaused/hasEnded/hasCachedAudio: State checks
+ * Key Features:
+ * - Streaming playback via MediaSource API (for HTTP/2 chunked responses)
+ * - Audio chunk caching for replay without new API calls
+ * - Automatic cleanup to prevent memory leaks
+ *
+ * Public Methods:
+ * - playStreamingResponse(): Start new playback (auto-stops current, caches chunks)
+ * - replayFromCache():       Replay from cached chunks (no new API request)
+ * - pauseAudio/resumeAudio:  Pause/resume current playback
+ * - stopAudio():             Stop playback (preserves cache for replay)
+ * - clearCache():            Clear cached chunks (prevents replay)
+ * - State checks: isPlaying(), isPaused(), hasEnded(), hasCachedAudio()
+ *
+ * IMPORTANT Design Notes:
+ * - Each playback creates a NEW HTMLAudioElement (old ones are cleaned up)
+ * - All audio elements have className='simple-tts-audio' for cleanup on extension reload
+ * - isStopping flag prevents error events from propagating during intentional stops
+ * - Cache is preserved across stop/replay cycle (only cleared explicitly or on new playback)
  */
 export class AudioService {
+  // Current playback state
   private currentAudio: HTMLAudioElement | null = null;
   private currentMediaSource: MediaSource | null = null;
+
+  // CRITICAL: Flag to prevent error propagation during intentional stops
+  // Without this, stopping audio would trigger error handlers and reject promises
   private isStopping: boolean = false;
+
   private playbackTimeoutId: number | null = null;
+
+  // Cache for replay functionality (preserves chunks for replay without new API call)
   private cachedChunks: Uint8Array[] = [];
   private cachedRate: number = 1;
 
+  /**
+   * Stop current audio playback
+   *
+   * CRITICAL PATTERNS:
+   * 1. Set isStopping flag FIRST to prevent error handlers from firing
+   * 2. Store references before clearing to avoid race conditions
+   * 3. Clear this.currentAudio/MediaSource BEFORE cleanup to prevent new operations
+   * 4. Preserve cache for replay (only cleared by clearCache() or new playback)
+   *
+   * WHY THIS ORDER MATTERS:
+   * - If we cleanup before clearing references, new operations could start
+   * - If we don't set isStopping first, cleanup triggers error events
+   */
   async stopAudio(): Promise<void> {
-    // Set stopping flag to prevent error propagation
+    // Step 1: Set flag to prevent error propagation during cleanup
     this.isStopping = true;
 
-    // Clear timeout if exists
+    // Step 2: Clear any pending timeouts
     if (this.playbackTimeoutId !== null) {
       window.clearTimeout(this.playbackTimeoutId);
       this.playbackTimeoutId = null;
     }
 
-    // Store references to avoid race conditions
+    // Step 3: Store references to current audio/MediaSource
+    // IMPORTANT: Store before clearing to avoid race conditions
     const audio = this.currentAudio;
     const mediaSource = this.currentMediaSource;
 
-    // Clear references immediately to prevent new operations
+    // Step 4: Clear instance references IMMEDIATELY
+    // This prevents new operations from starting during cleanup
     this.currentAudio = null;
     this.currentMediaSource = null;
 
-    // Keep cache for replay - don't clear it here
+    // NOTE: Cache is intentionally preserved for replay functionality
+    // Call clearCache() explicitly if you want to clear it
 
-    // Clean up audio and MediaSource
+    // Step 5: Clean up the stored references
     this.cleanup(audio, mediaSource);
   }
 
@@ -89,22 +125,41 @@ export class AudioService {
     this.cachedRate = 1;
   }
 
+  /**
+   * Replay audio from cached chunks
+   *
+   * CRITICAL: Cache preservation pattern
+   *
+   * WHY WE NEED TO COPY CACHE BEFORE STOPPING:
+   * - We need to stop current playback before starting replay
+   * - But stopAudio() could potentially clear references
+   * - So we copy cache to local variables FIRST
+   *
+   * CACHE RE-CACHING PATTERN:
+   * - We clear this.cachedChunks before replay
+   * - During playback, handleCachedPlayback() will re-cache chunks
+   * - This ensures cache is always fresh and in sync
+   *
+   * @throws {Error} If no cached audio is available
+   */
   async replayFromCache(): Promise<void> {
     if (!this.hasCachedAudio()) {
       throw new Error('No cached audio available for replay');
     }
 
-    // Preserve cache before stopping
+    // IMPORTANT: Copy cache to local variables BEFORE stopping
+    // stopAudio() doesn't clear cache, but we do this defensively
     const cachedChunks = [...this.cachedChunks];
     const cachedRate = this.cachedRate;
 
     // Stop current playback if any
     await this.stopAudio();
 
-    // Reset stopping flag for new playback
+    // Reset stopping flag to allow new playback
     this.isStopping = false;
 
-    // Reset cache to prepare for recaching during replay
+    // Clear cache for re-caching during replay
+    // The handleCachedPlayback() will rebuild the cache
     this.cachedChunks = [];
     this.cachedRate = cachedRate;
 
@@ -116,6 +171,10 @@ export class AudioService {
       const audio = new Audio();
       const mediaSource = new MediaSource();
 
+      // CRITICAL: Mark all TTS audio elements with a className
+      // This allows content script to find and clean up orphaned audio elements
+      // when the extension is reloaded (prevents memory leaks and "ended" event issues)
+      audio.className = 'simple-tts-audio';
       audio.src = URL.createObjectURL(mediaSource);
       audio.playbackRate = cachedRate;
       this.currentAudio = audio;
@@ -136,13 +195,30 @@ export class AudioService {
     });
   }
 
+  /**
+   * Play streaming TTS response using MediaSource API
+   *
+   * This method handles HTTP/2 chunked responses and caches chunks for replay.
+   *
+   * IMPORTANT SEQUENCE:
+   * 1. Stop current playback (preserves old cache)
+   * 2. Clear cache for NEW playback (prevents old data from mixing)
+   * 3. Create new audio element
+   * 4. Stream chunks and cache them as they arrive
+   *
+   * @param response - HTTP response with streaming audio data
+   * @param rate - Playback speed (1.0 = normal)
+   * @param onProgress - Optional progress callback
+   */
   async playStreamingResponse(response: Response, rate: number = 1, onProgress: ((progress: any) => void) | null = null): Promise<void> {
+    // Stop current playback before starting new one
     await this.stopAudio();
 
-    // Reset stopping flag for new playback
+    // Reset stopping flag to allow new playback
     this.isStopping = false;
 
-    // Clear cache and save new rate for fresh playback
+    // IMPORTANT: Clear cache for fresh playback
+    // Each new playback gets its own cache to prevent data mixing
     this.cachedChunks = [];
     this.cachedRate = rate;
 
@@ -154,6 +230,7 @@ export class AudioService {
       const audio = new Audio();
       const mediaSource = new MediaSource();
 
+      audio.className = 'simple-tts-audio';
       audio.src = URL.createObjectURL(mediaSource);
       audio.playbackRate = rate;
       this.currentAudio = audio;
@@ -282,12 +359,14 @@ export class AudioService {
         }, 30000) as unknown as number; // 30 second timeout
 
         audio.onended = () => {
+          console.log('[AudioService] handleStreamingPlayback - audio.onended fired, audio.ended:', audio.ended);
           if (this.playbackTimeoutId !== null) {
             window.clearTimeout(this.playbackTimeoutId);
             this.playbackTimeoutId = null;
           }
           // Cleanup MediaSource but keep audio element reference
           this.cleanupMediaSource(mediaSource);
+          console.log('[AudioService] after cleanup - currentAudio exists:', !!this.currentAudio, 'ended:', this.currentAudio?.ended);
           resolve();
         };
 
@@ -444,6 +523,7 @@ export class AudioService {
     const audio = new Audio();
     const objectUrl = URL.createObjectURL(blob);
 
+    audio.className = 'simple-tts-audio';
     audio.src = objectUrl;
     audio.playbackRate = rate;
     this.currentAudio = audio;
@@ -481,6 +561,7 @@ export class AudioService {
     const audio = new Audio();
     const objectUrl = URL.createObjectURL(blob);
 
+    audio.className = 'simple-tts-audio';
     audio.src = objectUrl;
     audio.playbackRate = rate;
     this.currentAudio = audio;
