@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { TTSService } from "../services/ttsService";
 import { AudioService } from "../services/audioService";
+import { playTTS, getVoiceSettings, getCredentials, createTTSStream } from "../utils/audioPlayer";
 import { Header } from "./components/Header";
 import { TextInput } from "./components/TextInput";
 import { ControlDashboard } from "./components/ControlDashboard.jsx";
@@ -53,26 +53,8 @@ function Popup() {
       setIsSpeaking(true);
       setStatus("Generating speech...");
 
-      const { settings, languageVoiceSettings } = await browser.storage.local.get([
-        "settings",
-        "languageVoiceSettings"
-      ]);
-
-      if (!settings?.azureKey || !settings?.azureRegion) {
-        throw new Error(
-          "Azure credentials not configured. Please check settings.",
-        );
-      }
-
-      const ttsService = new TTSService();
-      ttsService.setCredentials(settings.azureKey, settings.azureRegion);
-
-      const voiceSettings = languageVoiceSettings?.default || {};
-      const finalSettings = {
-        voice: settings.voice || voiceSettings.voice || "en-US-JennyNeural",
-        rate: settings.rate || voiceSettings.rate || 1,
-        pitch: settings.pitch || voiceSettings.pitch || 1,
-      };
+      const credentials = await getCredentials();
+      const voiceSettings = await getVoiceSettings();
 
       // Split text by newlines for sequential playback
       const segments = text.split(/\n+/).filter(segment => segment.trim().length > 0);
@@ -84,14 +66,15 @@ function Popup() {
       for (let i = 0; i < segments.length; i++) {
         const segment = segments[i].trim();
         if (segment) {
-          const streamingResponse = await ttsService.createStreamingResponse(
+          const streamingResponse = await createTTSStream(
             segment,
-            finalSettings
+            voiceSettings,
+            credentials
           );
 
           await audioService.playStreamingResponse(
             streamingResponse,
-            finalSettings.rate || 1
+            voiceSettings.rate || 1
           );
 
           if (i < segments.length - 1) {

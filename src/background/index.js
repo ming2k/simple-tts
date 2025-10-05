@@ -229,6 +229,11 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
               errorTitle = "TTS Not Available";
             } else if (retryError.message.includes('Extension context invalidated')) {
               errorMessage = "Extension needs to be reloaded. Please refresh the page.";
+            } else if (retryError.message.includes('Please refresh the page')) {
+              errorMessage = retryError.message;
+              errorTitle = "Page Refresh Required";
+            } else if (retryError.message.includes('not responding after injection')) {
+              errorMessage = "Content script failed to load. Please refresh the page and try again.";
             }
 
             await showNotification(errorTitle, errorMessage);
@@ -314,43 +319,56 @@ async function ensureContentScriptLoaded(tabId) {
       throw new Error('Tab is discarded and cannot receive scripts');
     }
 
-    // For Chrome/Chromium, try to inject the content script if not already loaded
-    if (typeof browser.scripting !== 'undefined') {
-      try {
+    // Try to inject the content script using webextension-polyfill
+    // Different manifest versions have different APIs:
+    // - Chrome MV3: browser.scripting.executeScript()
+    // - Firefox MV2: browser.tabs.executeScript()
+    try {
+      if (browser.scripting?.executeScript) {
+        // Chrome/Chromium Manifest V3
         await browser.scripting.executeScript({
           target: { tabId: tabId },
           files: ['content.js']
         });
-        console.log("Content script injected for tab:", tabId);
-      } catch (scriptError) {
-        // Check if tab was closed during injection
-        if (scriptError.message.includes('No tab with id') || scriptError.message.includes('Invalid tab ID')) {
-          throw new Error(`Tab ${tabId} was closed during script injection.`);
-        }
-        throw scriptError;
+        console.log("Content script injected (scripting API):", tabId);
+      } else if (browser.tabs?.executeScript) {
+        // Firefox Manifest V2 or older Chrome
+        await browser.tabs.executeScript(tabId, {
+          file: 'content.js'
+        });
+        console.log("Content script injected (tabs API):", tabId);
+      } else {
+        throw new Error('No script injection API available');
       }
-
-      // Wait a moment for script to initialize
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Verify injection worked
-      try {
-        const response = await browser.tabs.sendMessage(tabId, { type: "PING" });
-        if (response && response.pong) {
-          console.log("Content script injection verified for tab:", tabId);
-          return true;
-        } else {
-          throw new Error('Content script not responding after injection');
-        }
-      } catch (verifyError) {
-        // Check if tab was closed during verification
-        if (verifyError.message.includes('No tab with id') || verifyError.message.includes('Invalid tab ID')) {
-          throw new Error(`Tab ${tabId} was closed during verification.`);
-        }
-        throw new Error(`Content script injection failed verification: ${verifyError.message}`);
+    } catch (scriptError) {
+      // Check if tab was closed during injection
+      if (scriptError.message.includes('No tab with id') || scriptError.message.includes('Invalid tab ID')) {
+        throw new Error(`Tab ${tabId} was closed during script injection.`);
       }
-    } else {
-      throw new Error('Scripting API not available');
+      if (scriptError.message.includes('No script injection API')) {
+        throw new Error('Please refresh the page to enable TTS on this tab.');
+      }
+      throw scriptError;
+    }
+
+    // Wait a moment for script to initialize
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Verify injection worked
+    try {
+      const response = await browser.tabs.sendMessage(tabId, { type: "PING" });
+      if (response && response.pong) {
+        console.log("Content script injection verified for tab:", tabId);
+        return true;
+      } else {
+        throw new Error('Content script not responding after injection');
+      }
+    } catch (verifyError) {
+      // Check if tab was closed during verification
+      if (verifyError.message.includes('No tab with id') || verifyError.message.includes('Invalid tab ID')) {
+        throw new Error(`Tab ${tabId} was closed during verification.`);
+      }
+      throw new Error(`Content script injection failed verification: ${verifyError.message}`);
     }
   } catch (error) {
     console.error("Could not ensure content script loaded:", error.message);

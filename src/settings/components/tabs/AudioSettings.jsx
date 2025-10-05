@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Section, SaveButton } from '../common';
 import styled from 'styled-components';
 import browser from 'webextension-polyfill';
-import { TTSService } from '../../../services/ttsService';
 import { AudioService } from '../../../services/audioService';
+import { testVoice } from '../../../utils/audioPlayer';
 
 const AudioContainer = styled.div`
   display: flex;
@@ -245,6 +245,15 @@ export function AudioSettings({
     loadSavedSettings();
   }, []);
 
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      audioService.stopAudio().catch(() => {
+        // Ignore cleanup errors
+      });
+    };
+  }, [audioService]);
+
   const saveSettings = async () => {
     const settingsToSave = {
       default: {
@@ -265,41 +274,23 @@ export function AudioSettings({
     }));
   };
 
-  const testVoice = async () => {
+  const handleTestVoice = async () => {
     if (isPlaying) return;
 
     setIsPlaying(true);
     try {
-      // Get the current API settings for TTS service
-      const result = await browser.storage.local.get(['settings']);
-      const apiSettings = result.settings;
-
-      if (!apiSettings?.azureKey || !apiSettings?.azureRegion) {
-        alert('Please configure your API settings first.');
-        setIsPlaying(false);
-        return;
-      }
-
-      // Create TTS service with current settings
-      const ttsService = new TTSService();
-      ttsService.setCredentials(apiSettings.azureKey, apiSettings.azureRegion);
-
-      // Test voice with current settings
-      const testText = 'Hello! This is a test of your selected voice settings.';
       const testSettings = {
         voice: voiceSettings.voice,
         rate: voiceSettings.speed,
         pitch: voiceSettings.pitch
       };
 
-      const streamingResponse = await ttsService.createStreamingResponse(testText, testSettings);
-      await audioService.playStreamingResponse(streamingResponse, testSettings.rate || 1);
-
-      setIsPlaying(false);
+      await testVoice(audioService, testSettings);
     } catch (error) {
-      setIsPlaying(false);
       console.error('Test voice failed:', error);
       alert('Voice test failed. Please check your API settings and internet connection.');
+    } finally {
+      setIsPlaying(false);
     }
   };
 
@@ -392,33 +383,26 @@ export function AudioSettings({
                 <SliderValue>{voiceSettings.pitch.toFixed(1)}x</SliderValue>
               </SliderContainer>
             </ControlRow>
-
-            <div style={{
-              display: 'flex',
-              gap: '16px',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginTop: '20px',
-              paddingTop: '16px',
-              borderTop: '1px solid var(--border-secondary)'
-            }}>
-              <TestButton
-                onClick={testVoice}
-                disabled={isPlaying || allVoices.length === 0}
-              >
-                {isPlaying ? 'Playing...' : 'Test Voice'}
-              </TestButton>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                {isPlaying ? 'Playing test audio...' : 'Click to hear a sample with current settings'}
-              </div>
-            </div>
           </VoiceSection>
         </AudioContainer>
       )}
 
-      <SaveButton onClick={saveSettings} $saving={isSaving}>
-        {isSaving ? 'Saved' : 'Save Audio Settings'}
-      </SaveButton>
+      <div style={{
+        display: 'flex',
+        gap: '12px',
+        alignItems: 'center',
+        marginTop: '24px'
+      }}>
+        <TestButton
+          onClick={handleTestVoice}
+          disabled={isPlaying || allVoices.length === 0}
+        >
+          {isPlaying ? 'Playing...' : 'Test'}
+        </TestButton>
+        <SaveButton onClick={saveSettings} $saving={isSaving}>
+          {isSaving ? 'Saved' : 'Save'}
+        </SaveButton>
+      </div>
     </Section>
   );
 }
