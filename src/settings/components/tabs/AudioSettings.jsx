@@ -211,6 +211,81 @@ const TestButton = styled.button`
   }
 `;
 
+const FilterSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+`;
+
+const SearchInput = styled.input`
+  flex: 1;
+  min-width: 200px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: all 0.2s ease;
+
+  &:focus {
+    border-color: var(--text-accent);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
+`;
+
+const FilterRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+`;
+
+const FilterGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+`;
+
+const FilterLabel = styled.span`
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+`;
+
+const FilterSelect = styled.select`
+  padding: 8px 10px;
+  border: 1.5px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+
+  &:focus {
+    border-color: var(--text-accent);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+`;
+
+const VoiceCount = styled.div`
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-left: auto;
+  white-space: nowrap;
+`;
+
 export function AudioSettings({
   groupedVoices,
   onSave,
@@ -224,6 +299,10 @@ export function AudioSettings({
   });
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioService] = useState(() => new AudioService());
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterGender, setFilterGender] = useState('all');
+  const [filterMultilingual, setFilterMultilingual] = useState('all');
+  const [filterLocale, setFilterLocale] = useState('all');
 
   // Load saved settings
   useEffect(() => {
@@ -306,7 +385,50 @@ export function AudioSettings({
     return allVoices.sort((a, b) => a.label.localeCompare(b.label));
   };
 
+  // Get unique locales for filter dropdown
+  const getUniqueLocales = () => {
+    const allVoices = getAllVoices();
+    const locales = [...new Set(allVoices.map(v => v.locale))];
+    return locales.sort();
+  };
+
+  // Filter voices based on search term and filters
+  const getFilteredVoices = () => {
+    let voices = getAllVoices();
+
+    // Apply search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      voices = voices.filter(voice =>
+        voice.label.toLowerCase().includes(term) ||
+        voice.value.toLowerCase().includes(term) ||
+        voice.locale.toLowerCase().includes(term)
+      );
+    }
+
+    // Apply gender filter
+    if (filterGender !== 'all') {
+      voices = voices.filter(voice => voice.gender === filterGender);
+    }
+
+    // Apply multilingual filter
+    if (filterMultilingual === 'yes') {
+      voices = voices.filter(voice => voice.isMultilingual);
+    } else if (filterMultilingual === 'no') {
+      voices = voices.filter(voice => !voice.isMultilingual);
+    }
+
+    // Apply locale filter
+    if (filterLocale !== 'all') {
+      voices = voices.filter(voice => voice.locale === filterLocale);
+    }
+
+    return voices;
+  };
+
   const allVoices = getAllVoices();
+  const filteredVoices = getFilteredVoices();
+  const uniqueLocales = getUniqueLocales();
 
   return (
     <Section>
@@ -327,18 +449,69 @@ export function AudioSettings({
               Choose your preferred voice from the available options. Different voices may have unique characteristics and language support.
             </SectionDescription>
 
+            <FilterSection>
+              <FilterRow>
+                <SearchInput
+                  type="text"
+                  placeholder="Search voices..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <FilterGroup>
+                  <FilterLabel>Gender:</FilterLabel>
+                  <FilterSelect
+                    value={filterGender}
+                    onChange={(e) => setFilterGender(e.target.value)}
+                  >
+                    <option value="all">All</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </FilterSelect>
+                </FilterGroup>
+
+                <FilterGroup>
+                  <FilterLabel>Multilingual:</FilterLabel>
+                  <FilterSelect
+                    value={filterMultilingual}
+                    onChange={(e) => setFilterMultilingual(e.target.value)}
+                  >
+                    <option value="all">All</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </FilterSelect>
+                </FilterGroup>
+
+                <FilterGroup>
+                  <FilterLabel>Locale:</FilterLabel>
+                  <FilterSelect
+                    value={filterLocale}
+                    onChange={(e) => setFilterLocale(e.target.value)}
+                  >
+                    <option value="all">All</option>
+                    {uniqueLocales.map(locale => (
+                      <option key={locale} value={locale}>{locale}</option>
+                    ))}
+                  </FilterSelect>
+                </FilterGroup>
+
+                <VoiceCount>
+                  {filteredVoices.length}/{allVoices.length}
+                </VoiceCount>
+              </FilterRow>
+            </FilterSection>
+
             <ControlRow>
               <Label>Voice:</Label>
               <SelectField
                 value={voiceSettings.voice}
                 onChange={(e) => updateSetting('voice', e.target.value)}
               >
-                {allVoices.length === 0 ? (
-                  <option value="">No voices available</option>
+                {filteredVoices.length === 0 ? (
+                  <option value="">No voices match your filters</option>
                 ) : (
-                  allVoices.map(voice => (
+                  filteredVoices.map(voice => (
                     <option key={voice.value} value={voice.value}>
-                      {voice.label} ({voice.locale})
+                      {voice.label} ({voice.locale}){voice.isMultilingual ? ' 🌐' : ''}
                     </option>
                   ))
                 )}
@@ -395,7 +568,7 @@ export function AudioSettings({
       }}>
         <TestButton
           onClick={handleTestVoice}
-          disabled={isPlaying || allVoices.length === 0}
+          disabled={isPlaying || filteredVoices.length === 0}
         >
           {isPlaying ? 'Playing...' : 'Test'}
         </TestButton>
