@@ -20,7 +20,7 @@
     "notifications",
     "activeTab",
     "tabs",
-    "<all_urls>"
+    "https://*.tts.speech.microsoft.com/*"
   ],
   "content_scripts": [
     {

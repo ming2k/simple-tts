@@ -126,8 +126,12 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     }
 
     try {
-      const { settings } = await browser.storage.local.get("settings");
+      const { settings, languageVoiceSettings } = await browser.storage.local.get([
+        "settings",
+        "languageVoiceSettings"
+      ]);
       console.log("Retrieved settings:", settings);
+      console.log("Retrieved languageVoiceSettings:", languageVoiceSettings);
 
       if (!settings?.azureKey || !settings?.azureRegion) {
         await showNotification(
@@ -135,6 +139,18 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
           "Azure credentials not configured. Please check your settings.",
         );
         return;
+      }
+
+      // Get voice settings from languageVoiceSettings (same logic as ttsService.getVoiceSettings)
+      let voiceSettings;
+      if (languageVoiceSettings && languageVoiceSettings['default']) {
+        voiceSettings = languageVoiceSettings['default'];
+      } else {
+        voiceSettings = {
+          voice: "en-US-JennyNeural",
+          rate: 1,
+          pitch: 1
+        };
       }
 
       const ttsService = new SimpleTTS(
@@ -172,9 +188,9 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
           type: "PLAY_STREAMING_TTS",
           text: info.selectionText,
           settings: {
-            voice: settings.voice,
-            rate: settings.rate,
-            pitch: settings.pitch,
+            voice: voiceSettings.voice,
+            rate: voiceSettings.rate,
+            pitch: voiceSettings.pitch,
           },
           credentials: {
             azureKey: settings.azureKey,
@@ -232,9 +248,9 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
               type: "PLAY_STREAMING_TTS",
               text: info.selectionText,
               settings: {
-                voice: settings.voice,
-                rate: settings.rate,
-                pitch: settings.pitch,
+                voice: voiceSettings.voice,
+                rate: voiceSettings.rate,
+                pitch: voiceSettings.pitch,
               },
               credentials: {
                 azureKey: settings.azureKey,

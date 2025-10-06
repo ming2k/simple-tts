@@ -75,12 +75,6 @@ src/services/
 └── index.js            # Main SimpleTTS facade interface
 ```
 
-### Key Features
-- **Bearer Token Authentication**: Uses Azure STS v1.0 for secure API access
-- **PCM Audio Format**: High-quality `riff-24khz-16bit-mono-pcm` output
-- **Sequential & Parallel Processing**: Choose optimal synthesis strategy
-- **Comprehensive Testing**: 63+ unit tests covering all components
-
 ### Quick Setup
 ```bash
 npm install          # Install dependencies

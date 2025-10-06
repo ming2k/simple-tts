@@ -18,7 +18,7 @@
     "scripting"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "https://*.tts.speech.microsoft.com/*"
   ],
   "action": {
     "default_icon": {
