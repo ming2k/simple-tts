@@ -554,6 +554,16 @@ function attachAudioEventListeners(player) {
   audio.addEventListener('pause', handleStateChange);
   audio.addEventListener('ended', handleStateChange);
 
+  // Use timeupdate as fallback for Firefox where ended event may not fire reliably
+  // timeupdate fires periodically during playback (~250ms), allowing us to detect when audio ends
+  audio.addEventListener('timeupdate', () => {
+    // Check if audio has reached the end (within 0.1 seconds of duration)
+    if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1) {
+      console.log('[Simple TTS] timeupdate detected audio end');
+      updateMiniWindowUI();
+    }
+  });
+
   console.log('[Simple TTS] Event listeners attached to new audio element');
 
   // Initial UI update

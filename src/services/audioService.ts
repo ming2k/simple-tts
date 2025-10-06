@@ -377,22 +377,17 @@ export class AudioService {
           cleanupAndResolve();
         };
 
-        // Fallback polling for Firefox compatibility
-        // Some browsers don't reliably fire onended in extension contexts
-        const checkEnded = () => {
+        // Use timeupdate event as fallback for Firefox compatibility
+        // timeupdate fires periodically during playback (~250ms)
+        audio.ontimeupdate = () => {
           if (resolved || this.isStopping) return;
 
-          if (audio.ended || (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1)) {
-            console.log('[AudioService] Polling detected audio end');
+          // Check if audio has reached the end (within 0.1 seconds of duration)
+          if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1) {
+            console.log('[AudioService] timeupdate detected audio end');
             cleanupAndResolve();
-          } else if (audio.currentTime > 0) {
-            // Audio is playing, keep checking
-            setTimeout(checkEnded, 100);
           }
         };
-
-        // Start polling after a delay to allow audio to start
-        setTimeout(checkEnded, 500);
 
         audio.onerror = () => {
           if (resolved) return;
@@ -526,19 +521,15 @@ export class AudioService {
           cleanupAndResolve();
         };
 
-        // Fallback polling for Firefox compatibility
-        const checkEnded = () => {
+        // Use timeupdate event as fallback for Firefox compatibility
+        audio.ontimeupdate = () => {
           if (resolved || this.isStopping) return;
 
-          if (audio.ended || (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1)) {
-            console.log('[AudioService] Polling detected cached audio end');
+          if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1) {
+            console.log('[AudioService] timeupdate detected cached audio end');
             cleanupAndResolve();
-          } else if (audio.currentTime > 0) {
-            setTimeout(checkEnded, 100);
           }
         };
-
-        setTimeout(checkEnded, 500);
 
         audio.onerror = () => {
           if (resolved) return;
@@ -595,18 +586,14 @@ export class AudioService {
         cleanupAndResolve();
       };
 
-      // Fallback polling for Firefox compatibility
-      const checkEnded = () => {
+      // Use timeupdate event as fallback for Firefox compatibility
+      audio.ontimeupdate = () => {
         if (resolved || this.isStopping) return;
 
-        if (audio.ended || (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1)) {
+        if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1) {
           cleanupAndResolve();
-        } else if (audio.currentTime > 0) {
-          setTimeout(checkEnded, 100);
         }
       };
-
-      setTimeout(checkEnded, 500);
 
       audio.onerror = () => {
         if (resolved) return;
@@ -659,18 +646,14 @@ export class AudioService {
         cleanupAndResolve();
       };
 
-      // Fallback polling for Firefox compatibility
-      const checkEnded = () => {
+      // Use timeupdate event as fallback for Firefox compatibility
+      audio.ontimeupdate = () => {
         if (resolved || this.isStopping) return;
 
-        if (audio.ended || (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1)) {
+        if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1) {
           cleanupAndResolve();
-        } else if (audio.currentTime > 0) {
-          setTimeout(checkEnded, 100);
         }
       };
-
-      setTimeout(checkEnded, 500);
 
       audio.onerror = () => {
         if (resolved) return;
