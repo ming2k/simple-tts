@@ -1,395 +1,11 @@
 import browser from "webextension-polyfill";
 import { AudioService } from "../services/audioService";
 import { createTTSStream } from "../utils/audioPlayer";
+import { createMiniWindow } from "./miniWindow";
 
 console.log("[Simple TTS] Content script loaded/reloaded");
 
-/**
- * Create floating mini window with draggable controls
- *
- * This function creates a draggable mini window UI for TTS playback controls.
- * The window persists its position in localStorage and supports both mouse and touch events.
- */
-function createMiniWindow() {
-  // Try to get saved position from storage
-  let savedPosition = {};
-  try {
-    const saved = localStorage.getItem("tts-window-position");
-    if (saved) {
-      savedPosition = JSON.parse(saved);
-    }
-  } catch (e) {
-    // Use default position
-  }
-
-  // Add CSS variables for theme support
-  const style = document.createElement('style');
-  style.textContent = `
-    :root {
-      --tts-bg-primary: #ffffff;
-      --tts-bg-secondary: #f8fafc;
-      --tts-bg-hover: #e2e8f0;
-      --tts-text-primary: #1e293b;
-      --tts-text-secondary: #64748b;
-      --tts-text-accent: #3b82f6;
-      --tts-border: rgba(0,0,0,0.08);
-      --tts-shadow: rgba(0,0,0,0.12);
-      --tts-shadow-active: rgba(0,0,0,0.2);
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --tts-bg-primary: #0f172a;
-        --tts-bg-secondary: #1e293b;
-        --tts-bg-hover: #334155;
-        --tts-text-primary: #f1f5f9;
-        --tts-text-secondary: #94a3b8;
-        --tts-text-accent: #60a5fa;
-        --tts-border: rgba(255,255,255,0.08);
-        --tts-shadow: rgba(0,0,0,0.4);
-        --tts-shadow-active: rgba(0,0,0,0.6);
-      }
-    }
-
-    /* Reset any potential conflicts */
-    #tts-mini-window * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    /* Responsive adjustments */
-    @media (max-width: 768px) {
-      #tts-mini-window {
-        padding: 2px 4px;
-        min-width: 45px;
-        max-width: 75px;
-        gap: 2px;
-        border-radius: 10px;
-      }
-    }
-
-    @media (max-width: 480px) {
-      #tts-mini-window {
-        padding: 1px 3px;
-        min-width: 40px;
-        max-width: 70px;
-        gap: 1px;
-        border-radius: 8px;
-        min-height: 22px;
-      }
-    }
-  `;
-  document.head.appendChild(style);
-
-  const container = document.createElement("div");
-  container.id = "tts-mini-window";
-  container.style.cssText = `
-    position: fixed;
-    bottom: ${savedPosition.bottom || "20px"};
-    right: ${savedPosition.right || "20px"};
-    background: var(--tts-bg-primary);
-    padding: 3px 5px;
-    border-radius: 15px;
-    box-shadow: 0 2px 12px var(--tts-shadow);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
-    z-index: 2147483647;
-    cursor: move;
-    user-select: none;
-    -webkit-user-select: none;
-    transform: ${savedPosition.transform || "none"};
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    min-height: 30px;
-    min-width: 62px;
-    max-width: 100px;
-    transition: all 0.2s ease;
-    will-change: transform;
-    contain: layout style paint;
-    isolation: isolate;
-  `;
-
-  // Add draggable functionality
-  let isDragging = false;
-  let currentX;
-  let currentY;
-  let initialX;
-  let initialY;
-  let xOffset = savedPosition.xOffset || 0;
-  let yOffset = savedPosition.yOffset || 0;
-
-  function dragStart(e) {
-    // Only start dragging if clicking on the container or logo (not buttons)
-    if (e.target === container || e.target === logoContainer || e.target.closest('svg')) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      initialX = e.clientX - xOffset;
-      initialY = e.clientY - yOffset;
-      isDragging = true;
-
-      container.style.cursor = "grabbing";
-      container.style.zIndex = "2147483647";
-      container.style.transition = "none"; // Disable transitions during drag
-      container.style.pointerEvents = "none"; // Prevent interference during drag
-
-      // Ensure smooth dragging
-      document.body.style.userSelect = "none";
-      document.body.style.webkitUserSelect = "none";
-    }
-  }
-
-  function drag(e) {
-    if (isDragging) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      currentX = e.clientX - initialX;
-      currentY = e.clientY - initialY;
-      xOffset = currentX;
-      yOffset = currentY;
-
-      // Use requestAnimationFrame for smooth movement
-      requestAnimationFrame(() => {
-        const transform = `translate(${currentX}px, ${currentY}px)`;
-        container.style.transform = transform;
-      });
-
-      // Save position
-      if (!window.ttsPositionSaveTimeout) {
-        window.ttsPositionSaveTimeout = setTimeout(() => {
-          try {
-            localStorage.setItem("tts-window-position", JSON.stringify({
-              transform: `translate(${currentX}px, ${currentY}px)`,
-              xOffset: currentX,
-              yOffset: currentY,
-            }));
-          } catch (e) {}
-          window.ttsPositionSaveTimeout = null;
-        }, 100);
-      }
-    }
-  }
-
-  function dragEnd() {
-    if (isDragging) {
-      isDragging = false;
-      container.style.cursor = "move";
-      container.style.transition = "all 0.2s ease"; // Re-enable transitions
-      container.style.pointerEvents = "auto"; // Re-enable pointer events
-
-      // Restore body selection
-      document.body.style.userSelect = "";
-      document.body.style.webkitUserSelect = "";
-
-      // Save final position
-      if (window.ttsPositionSaveTimeout) {
-        clearTimeout(window.ttsPositionSaveTimeout);
-        window.ttsPositionSaveTimeout = null;
-      }
-      try {
-        localStorage.setItem("tts-window-position", JSON.stringify({
-          transform: `translate(${xOffset}px, ${yOffset}px)`,
-          xOffset: xOffset,
-          yOffset: yOffset,
-        }));
-      } catch (e) {}
-    }
-  }
-
-  // Base style for all icons (uniform size and styling)
-  const iconBaseStyle = `
-    width: 25px;
-    height: 25px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    user-select: none;
-    -webkit-user-select: none;
-    position: relative;
-  `;
-
-  // Create the extension logo to identify what this widget is
-  const logoContainer = document.createElement("div");
-  logoContainer.style.cssText = iconBaseStyle;
-
-  // Extension logo SVG - exact match with extension icon but without background
-  logoContainer.innerHTML = `
-    <svg width="23" height="23" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <text x="24" y="32" font-family="Arial" font-size="32" fill="var(--tts-text-accent)" text-anchor="middle">T</text>
-      <path d="M14,16 L34,16" stroke="var(--tts-text-accent)" stroke-width="2"/>
-      <path d="M18,36 L30,36" stroke="var(--tts-text-accent)" stroke-width="2"/>
-    </svg>
-  `;
-  logoContainer.title = "Simple TTS";
-
-  // Create replay/play button with consistent styling
-  const replayButton = document.createElement("button");
-  replayButton.style.cssText = `
-    ${iconBaseStyle}
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    border-radius: 50%;
-    transition: all 0.15s ease;
-    padding: 1px;
-    color: var(--tts-text-primary);
-    outline: none;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-  `;
-  replayButton.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M5 3l14 9-14 9V3z" fill="currentColor"/>
-    </svg>
-  `;
-  replayButton.title = "Play/Replay";
-
-  // Create close button with consistent styling
-  const closeButton = document.createElement("button");
-  closeButton.style.cssText = replayButton.style.cssText;
-  closeButton.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  `;
-  closeButton.title = "Close";
-
-  // Add hover effects for buttons
-  [replayButton, closeButton].forEach(button => {
-    button.addEventListener("mouseenter", () => {
-      if (!isDragging) {
-        button.style.background = "var(--tts-bg-hover)";
-        button.style.transform = "scale(1.1)";
-      }
-    });
-
-    button.addEventListener("mouseleave", () => {
-      if (!isDragging) {
-        button.style.background = "transparent";
-        button.style.transform = "scale(1)";
-      }
-    });
-
-    button.addEventListener("mousedown", (e) => {
-      e.stopPropagation(); // Prevent dragging when clicking buttons
-      // Don't prevent default as it can interfere with click events
-      if (!isDragging) {
-        button.style.transform = "scale(0.95)";
-      }
-    });
-
-    button.addEventListener("mouseup", (e) => {
-      e.stopPropagation();
-      if (!isDragging) {
-        button.style.transform = "scale(1.1)";
-      }
-    });
-
-    // Touch support
-    button.addEventListener("touchstart", (e) => {
-      e.stopPropagation();
-      if (!isDragging) {
-        button.style.background = "var(--tts-bg-hover)";
-        button.style.transform = "scale(1.05)";
-      }
-    }, { passive: false });
-
-    button.addEventListener("touchend", (e) => {
-      e.stopPropagation();
-      if (!isDragging) {
-        setTimeout(() => {
-          button.style.background = "transparent";
-          button.style.transform = "scale(1)";
-        }, 100);
-      }
-    }, { passive: false });
-  });
-
-  // Assemble the widget
-  container.appendChild(logoContainer);
-  container.appendChild(replayButton);
-  container.appendChild(closeButton);
-
-  // Add drag event listeners after all elements are created
-  container.addEventListener("mousedown", dragStart);
-  document.addEventListener("mousemove", drag);
-  document.addEventListener("mouseup", dragEnd);
-
-  // Touch drag support for mobile
-  container.addEventListener("touchstart", (e) => {
-    if (e.target === container || e.target === logoContainer || e.target.closest('svg')) {
-      const touch = e.touches[0];
-      const mouseEvent = new MouseEvent("mousedown", {
-        clientX: touch.clientX,
-        clientY: touch.clientY
-      });
-      dragStart(mouseEvent);
-    }
-  }, { passive: false });
-
-  document.addEventListener("touchmove", (e) => {
-    if (isDragging) {
-      e.preventDefault();
-      const touch = e.touches[0];
-      const mouseEvent = new MouseEvent("mousemove", {
-        clientX: touch.clientX,
-        clientY: touch.clientY
-      });
-      drag(mouseEvent);
-    }
-  }, { passive: false });
-
-  document.addEventListener("touchend", (_e) => {
-    if (isDragging) {
-      dragEnd();
-    }
-  }, { passive: false });
-
-  return {
-    container,
-    logoContainer,
-    replayButton,
-    closeButton,
-    updateStatus(isPlaying, hasEnded = false) {
-      if (isPlaying) {
-        replayButton.innerHTML = `
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/>
-            <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>
-          </svg>
-        `;
-        replayButton.title = "Pause";
-        container.style.background = "var(--tts-bg-secondary)";
-        container.style.boxShadow = "0 6px 20px var(--tts-shadow-active)";
-      } else if (hasEnded) {
-        // Show refresh icon when audio has ended
-        replayButton.innerHTML = `
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        `;
-        replayButton.title = "Replay";
-        container.style.background = "var(--tts-bg-primary)";
-        container.style.boxShadow = "0 4px 16px var(--tts-shadow)";
-      } else {
-        replayButton.innerHTML = `
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M5 3l14 9-14 9V3z" fill="currentColor"/>
-          </svg>
-        `;
-        replayButton.title = "Play";
-        container.style.background = "var(--tts-bg-primary)";
-        container.style.boxShadow = "0 4px 16px var(--tts-shadow)";
-      }
-    }
-  };
-}
+// Mini window UI is defined in src/content/miniWindow.ts
 
 /**
  * Initialize mini window and clean up any stale state
@@ -410,10 +26,22 @@ function initAudioPlayer() {
     const existingMiniWindow = document.getElementById("tts-mini-window");
     if (existingMiniWindow) {
       console.log('[Simple TTS] Cleaning up old mini-window from previous load');
+      if (window.ttsMiniWindow && typeof window.ttsMiniWindow.destroy === "function") {
+        window.ttsMiniWindow.destroy();
+      }
       existingMiniWindow.remove();
     }
     window.ttsMiniWindow = null;
     currentAudioElement = null;
+    if (currentPlaybackAbortController) {
+      try {
+        currentPlaybackAbortController.abort();
+      } catch (abortError) {
+        console.warn("[Simple TTS] Abort controller cleanup failed:", abortError);
+      }
+      currentPlaybackAbortController = null;
+    }
+    setPlaybackState("idle", { suppressUI: true });
 
     // CRITICAL: Clean up orphaned audio elements from previous extension loads
     // Without this, audio elements can continue playing without event listeners,
@@ -449,18 +77,16 @@ function initAudioPlayer() {
       e.stopPropagation();
       e.preventDefault();
 
-      const player = getStreamingAudioPlayer();
-      await player.stopAudio();
-      player.clearCache();
-      currentAudioElement = null;
-      lastPlaybackRequest = null;
+      await stopStreamingAudio({ clearCache: true });
 
       // Remove from DOM
+      miniWindow.destroy();
       miniWindow.container.remove();
       window.ttsMiniWindow = null;
     });
 
     console.log('[Simple TTS] Mini-window initialized successfully');
+    setPlaybackState("idle");
     return true;
   } catch (error) {
     console.error('[Simple TTS] Failed to initialize mini-window:', error);
@@ -490,6 +116,77 @@ initAudioPlayer();
 let streamingAudioPlayer = null;
 let currentAudioElement = null;
 let lastPlaybackRequest = null;
+let currentPlaybackAbortController = null;
+let playbackState = "idle";
+let currentPlaybackSource = null; // "stream" | "cache" | null
+let cachedReplayActive = false;
+let hasHandledPageExit = false;
+
+/**
+ * Lightweight guard to detect expected abort/cancel scenarios.
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isAbortError(error) {
+  if (!error) return false;
+
+  const name = typeof error === "object" ? error.name : undefined;
+  if (name === "AbortError") return true;
+
+  const message = typeof error?.message === "string" ? error.message : "";
+  return message.toLowerCase().includes("abort");
+}
+
+function setPlaybackState(state, { suppressUI = false } = {}) {
+  if (playbackState === state) return;
+  playbackState = state;
+
+  if (state === "idle") {
+    currentPlaybackSource = null;
+    cachedReplayActive = false;
+  } else if (state === "ended") {
+    cachedReplayActive = false;
+    currentPlaybackSource = null;
+  } else if (state === "error") {
+    cachedReplayActive = false;
+  }
+
+  if (!suppressUI) {
+    updateMiniWindowUI();
+  }
+}
+
+async function stopStreamingAudio({ clearCache = false } = {}) {
+  if (currentPlaybackAbortController) {
+    try {
+      currentPlaybackAbortController.abort();
+    } catch (abortError) {
+      console.warn("[Simple TTS] Abort controller error:", abortError);
+    }
+    currentPlaybackAbortController = null;
+  }
+
+  if (streamingAudioPlayer) {
+    try {
+      await streamingAudioPlayer.stopAudio();
+      if (clearCache) {
+        streamingAudioPlayer.clearCache();
+      }
+    } catch (error) {
+      if (!isAbortError(error)) {
+        console.warn("[Simple TTS] Failed to stop audio cleanly:", error);
+      }
+    }
+  }
+
+  currentAudioElement = null;
+
+  if (clearCache) {
+    lastPlaybackRequest = null;
+  }
+
+  setPlaybackState("idle");
+}
 
 /**
  * Update mini window UI based on AudioService state
@@ -500,12 +197,39 @@ let lastPlaybackRequest = null;
 function updateMiniWindowUI() {
   if (!window.ttsMiniWindow) return;
 
-  const player = getStreamingAudioPlayer();
-  const isPlaying = player.isPlaying();
-  const hasEnded = player.hasEnded();
+  const player = streamingAudioPlayer;
+  const rawHasAudio = Boolean(player && player.hasAudio && player.hasAudio());
+  const rawHasCachedAudio = Boolean(player && player.hasCachedAudio && player.hasCachedAudio());
+  const hasAudio = rawHasAudio || cachedReplayActive;
+  const hasCachedAudio = rawHasCachedAudio || cachedReplayActive;
+  const hasRequest = cachedReplayActive || Boolean(lastPlaybackRequest);
 
-  console.log('[Simple TTS] updateMiniWindowUI - isPlaying:', isPlaying, 'hasEnded:', hasEnded);
-  window.ttsMiniWindow.updateStatus(isPlaying, hasEnded);
+  window.ttsMiniWindow.updateStatus({
+    state: playbackState,
+    hasAudio,
+    hasCachedAudio,
+    hasRequest
+  });
+}
+
+function syncStateFromPlayer(player) {
+  if (!player) return;
+  try {
+    if (player.isPlaying()) {
+      setPlaybackState("playing");
+      return;
+    }
+    if (player.isPaused()) {
+      setPlaybackState("paused");
+      return;
+    }
+    if (player.hasEnded && player.hasEnded()) {
+      setPlaybackState("ended");
+      return;
+    }
+  } catch (error) {
+    console.warn("[Simple TTS] Failed to sync state from player:", error);
+  }
 }
 
 /**
@@ -546,28 +270,85 @@ function attachAudioEventListeners(player) {
   // Handler for all audio state changes (play, pause, ended)
   const handleStateChange = (event) => {
     console.log('[Simple TTS] Audio event:', event.type);
-    updateMiniWindowUI();
+    switch (event.type) {
+      case 'play':
+      case 'playing': {
+        setPlaybackState("playing");
+        break;
+      }
+      case 'pause': {
+        if (audio.ended) {
+          setPlaybackState("ended");
+        } else {
+          setPlaybackState("paused");
+        }
+        break;
+      }
+      case 'ended': {
+        setPlaybackState("ended");
+        break;
+      }
+      default:
+        updateMiniWindowUI();
+    }
   };
 
   // Attach listeners for all state changes we care about
   audio.addEventListener('play', handleStateChange);
+  audio.addEventListener('playing', handleStateChange);
   audio.addEventListener('pause', handleStateChange);
   audio.addEventListener('ended', handleStateChange);
+
+  audio.addEventListener('waiting', () => {
+    setPlaybackState("loading");
+  });
+
+  audio.addEventListener('canplay', () => {
+    if (audio.ended) {
+      setPlaybackState("ended");
+      return;
+    }
+    if (audio.paused && playbackState === "loading") {
+      setPlaybackState("paused");
+    }
+  });
+
+  audio.addEventListener('error', (event) => {
+    // Ignore errors fired after we've already cleaned up
+    if (!["loading", "playing", "paused"].includes(playbackState)) {
+      return;
+    }
+    console.error('[Simple TTS] Audio element error:', event);
+    setPlaybackState("error");
+  });
 
   // Use timeupdate as fallback for Firefox where ended event may not fire reliably
   // timeupdate fires periodically during playback (~250ms), allowing us to detect when audio ends
   audio.addEventListener('timeupdate', () => {
+    if (!audio.paused && !audio.ended && playbackState === "loading") {
+      setPlaybackState("playing");
+    }
     // Check if audio has reached the end (within 0.1 seconds of duration)
     if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1) {
       console.log('[Simple TTS] timeupdate detected audio end');
-      updateMiniWindowUI();
+      if (playbackState !== "ended") {
+        setPlaybackState("ended");
+      }
     }
   });
 
   console.log('[Simple TTS] Event listeners attached to new audio element');
 
   // Initial UI update
-  updateMiniWindowUI();
+  if (audio.ended) {
+    setPlaybackState("ended");
+  } else if (audio.paused) {
+    // If autoplay was blocked, stay consistent with UI
+    setPlaybackState(playbackState === "loading" ? "paused" : "paused");
+  } else {
+    setPlaybackState("playing");
+  }
+
   return true;
 }
 
@@ -605,21 +386,68 @@ function getStreamingAudioPlayer() {
 async function playAudioFromRequest(request) {
   const player = getStreamingAudioPlayer();
 
-  const streamingResponse = await createTTSStream(
-    request.text,
-    request.settings,
-    request.credentials
-  );
+  if (currentPlaybackAbortController) {
+    try {
+      currentPlaybackAbortController.abort();
+    } catch (abortError) {
+      console.warn("[Simple TTS] Previous playback abort failed:", abortError);
+    }
+  }
 
-  const playbackPromise = player.playStreamingResponse(
-    streamingResponse,
-    request.settings.rate || 1
-  );
+  const abortController = new AbortController();
+  currentPlaybackAbortController = abortController;
 
-  // Attach listeners with retry
-  await attachAudioEventListenersWithRetry(player);
+  currentPlaybackSource = "stream";
+  cachedReplayActive = false;
+  setPlaybackState("loading");
 
-  await playbackPromise;
+  let streamingResponse;
+  try {
+    streamingResponse = await createTTSStream(
+      request.text,
+      request.settings,
+      request.credentials,
+      abortController.signal
+    );
+  } catch (error) {
+    if (isAbortError(error)) {
+      setPlaybackState("idle");
+      return;
+    }
+    setPlaybackState("error");
+    throw error;
+  }
+
+  try {
+    const playbackPromise = player.playStreamingResponse(
+      streamingResponse,
+      request.settings.rate || 1
+    );
+
+    // Attach listeners with retry
+    await attachAudioEventListenersWithRetry(player);
+    syncStateFromPlayer(player);
+
+    await playbackPromise;
+    if (["playing", "paused", "loading"].includes(playbackState)) {
+      setPlaybackState("ended");
+    }
+  } catch (error) {
+    if (isAbortError(error)) {
+      setPlaybackState("idle");
+      return;
+    }
+    if (error?.name === 'NotAllowedError') {
+      setPlaybackState("paused");
+      return;
+    }
+    setPlaybackState("error");
+    throw error;
+  } finally {
+    if (currentPlaybackAbortController === abortController) {
+      currentPlaybackAbortController = null;
+    }
+  }
 }
 
 // Replay button handler
@@ -627,13 +455,17 @@ async function handleReplayButtonClick(e) {
   e.stopPropagation();
   e.preventDefault();
 
+  if (playbackState === "loading") {
+    return;
+  }
+
   const player = getStreamingAudioPlayer();
 
   // Handle play/pause/resume using AudioService methods
   if (player.isPlaying()) {
     // Currently playing -> pause
     player.pauseAudio();
-    updateMiniWindowUI();
+    setPlaybackState("paused");
     return;
   }
 
@@ -641,10 +473,10 @@ async function handleReplayButtonClick(e) {
     // Paused -> resume
     try {
       await player.resumeAudio();
-      updateMiniWindowUI();
+      setPlaybackState("playing");
     } catch (error) {
       console.error('Resume failed:', error);
-      updateMiniWindowUI();
+      setPlaybackState("error");
     }
     return;
   }
@@ -653,15 +485,62 @@ async function handleReplayButtonClick(e) {
   if (player.hasCachedAudio()) {
     // Use cached audio for replay (no new request)
     try {
+      currentPlaybackSource = "cache";
+      cachedReplayActive = true;
+      setPlaybackState("loading");
+
       const replayPromise = player.replayFromCache();
 
       // Attach listeners with retry
       await attachAudioEventListenersWithRetry(player);
+      syncStateFromPlayer(player);
+
+      const audio = player.getCurrentAudio();
+      if (audio) {
+        if (!audio.paused && !audio.ended) {
+          setPlaybackState("playing");
+        } else if (audio.paused && audio.currentTime > 0) {
+          setPlaybackState("paused");
+        } else {
+          setPlaybackState("paused");
+        }
+      } else {
+        setPlaybackState("playing");
+      }
 
       await replayPromise;
+
+      cachedReplayActive = false;
+      currentPlaybackSource = null;
+
+      const replayAudio = player.getCurrentAudio();
+      if (replayAudio && replayAudio.ended) {
+        setPlaybackState("ended");
+        return;
+      }
+      if (player.hasEnded && player.hasEnded()) {
+        setPlaybackState("ended");
+        return;
+      }
+      if (player.isPaused && player.isPaused()) {
+        setPlaybackState("paused");
+        return;
+      }
+      if (player.isPlaying && player.isPlaying()) {
+        setPlaybackState("playing");
+        return;
+      }
+
+      setPlaybackState("ended");
     } catch (error) {
       console.error('Replay from cache failed:', error);
-      updateMiniWindowUI();
+      cachedReplayActive = false;
+      currentPlaybackSource = null;
+      if (isAbortError(error)) {
+        setPlaybackState("idle");
+      } else {
+        setPlaybackState("error");
+      }
     }
   } else if (lastPlaybackRequest) {
     // Fallback to making a new request if no cache available
@@ -669,7 +548,11 @@ async function handleReplayButtonClick(e) {
       await playAudioFromRequest(lastPlaybackRequest);
     } catch (error) {
       console.error('Replay failed:', error);
-      updateMiniWindowUI();
+      if (isAbortError(error)) {
+        setPlaybackState("idle");
+      } else {
+        setPlaybackState("error");
+      }
     }
   }
 }
@@ -746,16 +629,13 @@ browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) =>
 
       case "STOP_AUDIO": {
         // CRITICAL: Complete cleanup sequence to prevent memory leaks and stale state
-        const player = getStreamingAudioPlayer();
-        await player.stopAudio();
-        player.clearCache();
-
-        // IMPORTANT: Reset tracking variables to prevent stale references
-        currentAudioElement = null;  // Clear event listener tracking
-        lastPlaybackRequest = null;  // Clear replay cache
+        await stopStreamingAudio({ clearCache: true });
 
         // Remove mini window from DOM (prevents duplicate windows on next play)
         if (window.ttsMiniWindow) {
+          if (typeof window.ttsMiniWindow.destroy === "function") {
+            window.ttsMiniWindow.destroy();
+          }
           window.ttsMiniWindow.container.remove();
           window.ttsMiniWindow = null;
         }
@@ -768,3 +648,14 @@ browser.runtime.onMessage.addListener(async (request, _sender, _sendResponse) =>
     throw error;
   }
 });
+
+function handlePageExit() {
+  if (hasHandledPageExit) {
+    return;
+  }
+  hasHandledPageExit = true;
+  void stopStreamingAudio({ clearCache: true });
+}
+
+window.addEventListener("pagehide", handlePageExit);
+window.addEventListener("beforeunload", handlePageExit);

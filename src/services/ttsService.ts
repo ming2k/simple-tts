@@ -1,5 +1,6 @@
 import { AudioService } from "./audioService";
 import browser from "webextension-polyfill";
+import { getVoiceSettingsWithDefaults, saveVoiceSettings } from "../utils/voiceSettingsStorage";
 
 interface VoiceSettings {
   voice?: string;
@@ -193,7 +194,11 @@ export class TTSService {
     return `${streamEndpoint}?${requestBody}`;
   }
 
-  async createStreamingResponse(text: string, settings: VoiceSettings = {}): Promise<Response> {
+  async createStreamingResponse(
+    text: string,
+    settings: VoiceSettings = {},
+    signal?: AbortSignal
+  ): Promise<Response> {
     if (!this.azureKey || !this.azureRegion) {
       throw new Error("Azure credentials not configured");
     }
@@ -204,7 +209,7 @@ export class TTSService {
     const { audioFormat } = this.getAudioFormat();
 
     try {
-      const response = await fetch(this.baseUrl!, {
+      const requestInit: RequestInit = {
         method: 'POST',
         headers: {
           'Ocp-Apim-Subscription-Key': this.azureKey,
@@ -212,7 +217,13 @@ export class TTSService {
           'X-Microsoft-OutputFormat': audioFormat
         },
         body: ssml
-      });
+      };
+
+      if (signal) {
+        requestInit.signal = signal;
+      }
+
+      const response = await fetch(this.baseUrl!, requestInit);
 
       if (!response.ok) {
         let errorDetails = response.statusText;
@@ -238,6 +249,10 @@ export class TTSService {
 
       return response;
     } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        throw error;
+      }
+
       if (error.message?.includes('fetch')) {
         throw new Error(`Network error: Check your internet connection`);
       }
@@ -245,14 +260,14 @@ export class TTSService {
     }
   }
 
-  async getSettings(): Promise<{ settings: any; languageVoiceSettings: any }> {
+  async getSettings(): Promise<{ settings: any }> {
     const result = await browser.storage.local.get([
       "settings",
+      "voiceSettings",
       "languageVoiceSettings",
-    ]) as { settings?: any; languageVoiceSettings?: any };
+    ]) as { settings?: any; voiceSettings?: any; languageVoiceSettings?: any };
 
     const settings = result.settings;
-    const languageVoiceSettings = result.languageVoiceSettings;
 
     if (settings?.azureKey !== this.azureKey || settings?.azureRegion !== this.azureRegion) {
       this.azureKey = settings.azureKey;
@@ -260,27 +275,20 @@ export class TTSService {
       this.baseUrl = `https://${settings.azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`;
     }
 
-    return { settings, languageVoiceSettings };
+    if (!result.voiceSettings && result.languageVoiceSettings) {
+      const normalized = await getVoiceSettingsWithDefaults();
+      await saveVoiceSettings(normalized);
+    }
+
+    return { settings };
   }
 
   async getVoiceSettings(text: string, userSettings: VoiceSettings = {}): Promise<VoiceSettings> {
-    const { languageVoiceSettings } = await this.getSettings();
-
-    let languageSettings: VoiceSettings;
-    if (languageVoiceSettings && languageVoiceSettings['default']) {
-      languageSettings = languageVoiceSettings['default'];
-    } else {
-      languageSettings = {
-        voice: "en-US-JennyNeural",
-        rate: 1,
-        pitch: 1
-      };
-    }
+    await this.getSettings();
+    const storedVoiceSettings = await getVoiceSettingsWithDefaults();
 
     return {
-      rate: 1,
-      pitch: 1,
-      ...languageSettings,
+      ...storedVoiceSettings,
       ...userSettings,
     };
   }
@@ -362,7 +370,7 @@ export class SimpleTTS {
     return await this.ttsService.getVoicesList();
   }
 
-  async createStreamingResponse(text: string, settings: VoiceSettings = {}): Promise<Response> {
-    return await this.ttsService.createStreamingResponse(text, settings);
+  async createStreamingResponse(text: string, settings: VoiceSettings = {}, signal?: AbortSignal): Promise<Response> {
+    return await this.ttsService.createStreamingResponse(text, settings, signal);
   }
 }

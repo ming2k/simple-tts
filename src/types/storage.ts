@@ -35,8 +35,8 @@ export interface BrowserStorageData {
   // Core settings
   settings?: TTSSettings;
 
-  // Language-specific voice settings
-  languageVoiceSettings?: LanguageVoiceSettings;
+  // Voice settings (global)
+  voiceSettings?: VoiceSettings;
 
   // UI state
   onboardingCompleted?: boolean;
@@ -100,8 +100,8 @@ export interface StorageService {
   getSettings(): Promise<TTSSettings | undefined>;
   setSettings(settings: TTSSettings): Promise<void>;
 
-  getLanguageVoiceSettings(): Promise<LanguageVoiceSettings | undefined>;
-  setLanguageVoiceSettings(settings: LanguageVoiceSettings): Promise<void>;
+  getVoiceSettings(): Promise<VoiceSettings | undefined>;
+  setVoiceSettings(settings: VoiceSettings): Promise<void>;
 
   getOnboardingCompleted(): Promise<boolean>;
   setOnboardingCompleted(completed: boolean): Promise<void>;
@@ -128,13 +128,13 @@ export interface StorageService {
 export const defaultTTSSettings: TTSSettings = {
   azureKey: '',
   azureRegion: '',
-  voice: 'en-US-JennyNeural',
+  voice: 'en-US-AvaMultilingualNeural',
   rate: 1.0,
   pitch: 1.0
 };
 
 export const defaultVoiceSettings: VoiceSettings = {
-  voice: 'en-US-JennyNeural',
+  voice: 'en-US-AvaMultilingualNeural',
   rate: 1.0,
   pitch: 1.0
 };

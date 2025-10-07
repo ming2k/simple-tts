@@ -1,5 +1,6 @@
 import browser from 'webextension-polyfill';
 import { TTSService } from '../services/ttsService';
+import { getVoiceSettingsWithDefaults } from './voiceSettingsStorage';
 
 /**
  * Shared audio playback utilities
@@ -32,17 +33,11 @@ export async function getCredentials() {
  * @returns {Promise<{voice: string, rate: number, pitch: number}>}
  */
 export async function getVoiceSettings() {
-  const { settings, languageVoiceSettings } = await browser.storage.local.get([
-    'settings',
-    'languageVoiceSettings'
-  ]);
-
-  const voiceSettings = languageVoiceSettings?.default || {};
-
+  const settings = await getVoiceSettingsWithDefaults();
   return {
-    voice: settings?.voice || voiceSettings.voice || 'en-US-JennyNeural',
-    rate: settings?.rate || voiceSettings.rate || 1,
-    pitch: settings?.pitch || voiceSettings.pitch || 1
+    voice: settings.voice,
+    rate: settings.rate,
+    pitch: settings.pitch
   };
 }
 
@@ -51,11 +46,16 @@ export async function getVoiceSettings() {
  * @param {string} text - Text to convert to speech
  * @param {object} settings - Voice settings {voice, rate, pitch}
  * @param {object} credentials - Azure credentials {azureKey, azureRegion}
+ * @param {AbortSignal} [abortSignal] - Optional signal to cancel the request
  * @returns {Promise<Response>} Streaming audio response
  */
-export async function createTTSStream(text, settings, credentials) {
+export async function createTTSStream(text, settings, credentials, abortSignal = null) {
   const ttsService = new TTSService();
   ttsService.setCredentials(credentials.azureKey, credentials.azureRegion);
+
+  if (abortSignal) {
+    return await ttsService.createStreamingResponse(text, settings, abortSignal);
+  }
 
   return await ttsService.createStreamingResponse(text, settings);
 }

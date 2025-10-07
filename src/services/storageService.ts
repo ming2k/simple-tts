@@ -3,11 +3,12 @@ import {
   StorageService,
   BrowserStorageData,
   TTSSettings,
-  LanguageVoiceSettings,
+  VoiceSettings,
   TTSWindowPosition,
   defaultTTSSettings,
   defaultVoiceSettings,
   isTTSSettings,
+  isVoiceSettings,
   isLanguageVoiceSettings
 } from '../types/storage';
 
@@ -46,30 +47,39 @@ export class BrowserStorageService implements StorageService {
     }
   }
 
-  async getLanguageVoiceSettings(): Promise<LanguageVoiceSettings | undefined> {
+  async getVoiceSettings(): Promise<VoiceSettings | undefined> {
     try {
-      const result = await browser.storage.local.get(['languageVoiceSettings']);
-      const settings = result.languageVoiceSettings;
+      const result = await browser.storage.local.get(['voiceSettings', 'languageVoiceSettings']);
+      const settings = result.voiceSettings;
 
-      if (settings && isLanguageVoiceSettings(settings)) {
+      if (settings && isVoiceSettings(settings)) {
         return settings;
+      }
+
+      const legacy = result.languageVoiceSettings;
+      if (legacy && isLanguageVoiceSettings(legacy) && legacy.default && isVoiceSettings(legacy.default)) {
+        const migrated = legacy.default;
+        await browser.storage.local.set({ voiceSettings: migrated });
+        await browser.storage.local.remove('languageVoiceSettings');
+        return migrated;
       }
 
       return undefined;
     } catch (error) {
-      console.error('Failed to get language voice settings:', error);
+      console.error('Failed to get voice settings:', error);
       return undefined;
     }
   }
 
-  async setLanguageVoiceSettings(settings: LanguageVoiceSettings): Promise<void> {
+  async setVoiceSettings(settings: VoiceSettings): Promise<void> {
     try {
-      if (!isLanguageVoiceSettings(settings)) {
-        throw new Error('Invalid language voice settings format');
+      if (!isVoiceSettings(settings)) {
+        throw new Error('Invalid voice settings format');
       }
-      await browser.storage.local.set({ languageVoiceSettings: settings });
+      await browser.storage.local.set({ voiceSettings: settings });
+      await browser.storage.local.remove('languageVoiceSettings');
     } catch (error) {
-      console.error('Failed to set language voice settings:', error);
+      console.error('Failed to set voice settings:', error);
       throw error;
     }
   }
@@ -200,9 +210,9 @@ export class BrowserStorageService implements StorageService {
     return { ...defaultTTSSettings, ...settings };
   }
 
-  async getLanguageVoiceSettingsWithDefaults(): Promise<LanguageVoiceSettings> {
-    const settings = await this.getLanguageVoiceSettings();
-    return settings || { default: { ...defaultVoiceSettings } };
+  async getVoiceSettingsWithDefaults(): Promise<VoiceSettings> {
+    const settings = await this.getVoiceSettings();
+    return { ...defaultVoiceSettings, ...settings };
   }
 
   // Utility method to clear all storage (useful for testing/debugging)
@@ -259,7 +269,7 @@ export class BrowserStorageService implements StorageService {
     try {
       const allData = await this.getBrowserStorageData([
         'settings',
-        'languageVoiceSettings',
+        'voiceSettings',
         'onboardingCompleted',
         'optionsActiveTab',
         'lastInput'
@@ -274,6 +284,11 @@ export class BrowserStorageService implements StorageService {
           ...allData.settings
         };
         await this.setSettings(migratedSettings);
+      }
+
+      const voiceSettings = await this.getVoiceSettings();
+      if (!voiceSettings) {
+        await this.setVoiceSettings(defaultVoiceSettings);
       }
 
       console.log('Storage migration completed');

@@ -34,6 +34,7 @@ export class AudioService {
   private isStopping: boolean = false;
 
   private playbackTimeoutId: number | null = null;
+  private currentStreamReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
   // Cache for replay functionality (preserves chunks for replay without new API call)
   private cachedChunks: Uint8Array[] = [];
@@ -66,6 +67,8 @@ export class AudioService {
     // IMPORTANT: Store before clearing to avoid race conditions
     const audio = this.currentAudio;
     const mediaSource = this.currentMediaSource;
+
+    await this.cancelActiveStream('stopAudio');
 
     // Step 4: Clear instance references IMMEDIATELY
     // This prevents new operations from starting during cleanup
@@ -123,6 +126,24 @@ export class AudioService {
   clearCache(): void {
     this.cachedChunks = [];
     this.cachedRate = 1;
+  }
+
+  private async cancelActiveStream(reason: string = 'manual-stop'): Promise<void> {
+    if (!this.currentStreamReader) {
+      return;
+    }
+
+    const reader = this.currentStreamReader;
+    this.currentStreamReader = null;
+
+    try {
+      await reader.cancel(reason);
+    } catch (error: any) {
+      // TypeError occurs if reader is already released; safe to ignore
+      if (error?.name !== 'TypeError') {
+        console.warn('Failed to cancel audio stream reader:', error?.message || error);
+      }
+    }
   }
 
   /**
@@ -268,12 +289,18 @@ export class AudioService {
 
       sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
       reader = response.body!.getReader();
+      this.currentStreamReader = reader;
 
       let totalSize = parseInt(response.headers.get('content-length') || '0');
       let receivedSize = 0;
       let hasStartedPlaying = false;
 
       while (true) {
+        if (this.isStopping) {
+          console.log('[AudioService] Stop requested - exiting streaming loop');
+          break;
+        }
+
         // Check if MediaSource is still valid before each operation
         if (mediaSource.readyState !== 'open') {
           break;
@@ -318,6 +345,10 @@ export class AudioService {
           if (mediaSource.readyState !== 'open') {
             break;
           }
+
+          if (this.isStopping) {
+            break;
+          }
         }
 
         // Only append if MediaSource is still open and sourceBuffer is not updating
@@ -345,6 +376,11 @@ export class AudioService {
             // If autoplay failed, we'll try again after user interaction
             if (playError.name === 'NotAllowedError') {
               console.log('Autoplay blocked, will require user interaction');
+              setTimeout(() => {
+                if (!this.isStopping && audio.paused && !audio.ended) {
+                  audio.dispatchEvent(new Event('pause'));
+                }
+              }, 0);
             }
           }
         }
@@ -362,6 +398,9 @@ export class AudioService {
             this.playbackTimeoutId = null;
           }
           this.cleanupMediaSource(mediaSource);
+          if (this.currentStreamReader === reader) {
+            this.currentStreamReader = null;
+          }
           resolve();
         };
 
@@ -406,17 +445,34 @@ export class AudioService {
         };
       });
 
-    } catch (error) {
-      // Clean up reader if it was created
-      if (reader) {
+    } catch (error: any) {
+      if (reader && error?.name !== 'AbortError') {
         try {
           await reader.cancel();
         } catch (e: any) {
           console.warn('Failed to cancel reader:', e.message);
         }
       }
+
+      if (this.currentStreamReader === reader) {
+        this.currentStreamReader = null;
+      }
+
       this.cleanup(audio, mediaSource);
+
+      const errorMessage = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
+      if (
+        error?.name === 'AbortError' ||
+        (this.isStopping && (error?.name === 'InvalidStateError' || errorMessage.includes('abort')))
+      ) {
+        return;
+      }
+
       throw error;
+    } finally {
+      if (this.currentStreamReader === reader) {
+        this.currentStreamReader = null;
+      }
     }
   }
 
@@ -708,12 +764,13 @@ export class AudioService {
     // Clean up audio element
     if (audio) {
       try {
+        const originalSrc = audio.src;
         audio.pause();
         audio.removeAttribute('src');
         audio.load(); // Reset the audio element state
 
-        if (audio.src) {
-          URL.revokeObjectURL(audio.src);
+        if (originalSrc) {
+          URL.revokeObjectURL(originalSrc);
         }
       } catch (e: any) {
         console.warn('Error cleaning up audio element:', e.message);

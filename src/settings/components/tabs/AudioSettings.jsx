@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Section, SaveButton } from '../common';
 import styled from 'styled-components';
-import browser from 'webextension-polyfill';
 import { AudioService } from '../../../services/audioService';
 import { testVoice } from '../../../utils/audioPlayer';
+import { getVoiceSettingsWithDefaults, saveVoiceSettings } from '../../../utils/voiceSettingsStorage';
 
 const AudioContainer = styled.div`
   display: flex;
@@ -308,13 +308,12 @@ export function AudioSettings({
   useEffect(() => {
     const loadSavedSettings = async () => {
       try {
-        const result = await browser.storage.local.get(['languageVoiceSettings']);
-        const saved = result.languageVoiceSettings?.default || {};
+        const saved = await getVoiceSettingsWithDefaults();
 
         setVoiceSettings({
           voice: saved.voice || 'en-US-JennyNeural',
-          speed: saved.rate || 1.0,
-          pitch: saved.pitch || 1.0
+          speed: saved.rate ?? 1.0,
+          pitch: saved.pitch ?? 1.0
         });
       } catch (error) {
         console.error('Failed to load voice settings:', error);
@@ -334,15 +333,11 @@ export function AudioSettings({
   }, [audioService]);
 
   const saveSettings = async () => {
-    const settingsToSave = {
-      default: {
-        voice: voiceSettings.voice,
-        rate: voiceSettings.speed,
-        pitch: voiceSettings.pitch
-      }
-    };
-
-    await browser.storage.local.set({ languageVoiceSettings: settingsToSave });
+    await saveVoiceSettings({
+      voice: voiceSettings.voice,
+      rate: voiceSettings.speed,
+      pitch: voiceSettings.pitch
+    });
     onSave();
   };
 

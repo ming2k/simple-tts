@@ -18,22 +18,17 @@ const configs = browsers.map(browser => ({
   module: {
     rules: [
       {
-        test: /\.(js|jsx)$/,
+        test: /\.(js|jsx|ts|tsx)$/,
         exclude: /node_modules/,
         use: {
           loader: 'babel-loader',
           options: {
-            presets: ['@babel/preset-env', '@babel/preset-react']
+            presets: ['@babel/preset-env', '@babel/preset-react', '@babel/preset-typescript']
           }
         },
         resolve: {
           fullySpecified: false
         }
-      },
-      {
-        test: /\.ts$/,
-        exclude: /node_modules/,
-        use: 'ts-loader'
       },
       {
         test: /\.css$/,
@@ -42,7 +37,7 @@ const configs = browsers.map(browser => ({
     ]
   },
   resolve: {
-    extensions: ['.js', '.jsx', '.ts']
+    extensions: ['.js', '.jsx', '.ts', '.tsx']
   },
   plugins: [
     // Remove Azure environment variables

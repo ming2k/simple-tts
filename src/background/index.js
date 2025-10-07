@@ -1,5 +1,6 @@
 import browser from "webextension-polyfill";
 import { SimpleTTS } from "../services/ttsService";
+import { getVoiceSettingsWithDefaults, saveVoiceSettings } from "../utils/voiceSettingsStorage";
 
 console.log("[Simple TTS] Background script loaded/reloaded");
 
@@ -42,6 +43,11 @@ browser.runtime.onInstalled.addListener(async (details) => {
     await browser.storage.local.set({
       settings: defaultSettings,
       onboardingCompleted: false,
+    });
+    await saveVoiceSettings({
+      voice: defaultSettings.voice,
+      rate: defaultSettings.rate,
+      pitch: defaultSettings.pitch,
     });
 
     // Set badge to indicate setup needed if no Azure credentials
@@ -126,12 +132,16 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     }
 
     try {
-      const { settings, languageVoiceSettings } = await browser.storage.local.get([
+      const { settings, voiceSettings } = await browser.storage.local.get([
         "settings",
+        "voiceSettings",
         "languageVoiceSettings"
       ]);
       console.log("Retrieved settings:", settings);
-      console.log("Retrieved languageVoiceSettings:", languageVoiceSettings);
+      if (!voiceSettings) {
+        const normalized = await getVoiceSettingsWithDefaults();
+        await saveVoiceSettings(normalized);
+      }
 
       if (!settings?.azureKey || !settings?.azureRegion) {
         await showNotification(
@@ -141,17 +151,8 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         return;
       }
 
-      // Get voice settings from languageVoiceSettings (same logic as ttsService.getVoiceSettings)
-      let voiceSettings;
-      if (languageVoiceSettings && languageVoiceSettings['default']) {
-        voiceSettings = languageVoiceSettings['default'];
-      } else {
-        voiceSettings = {
-          voice: "en-US-JennyNeural",
-          rate: 1,
-          pitch: 1
-        };
-      }
+      // Get voice settings (with defaults and legacy migration support)
+      const finalVoiceSettings = await getVoiceSettingsWithDefaults();
 
       const ttsService = new SimpleTTS(
         settings.azureKey,
@@ -188,9 +189,9 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
           type: "PLAY_STREAMING_TTS",
           text: info.selectionText,
           settings: {
-            voice: voiceSettings.voice,
-            rate: voiceSettings.rate,
-            pitch: voiceSettings.pitch,
+            voice: finalVoiceSettings.voice,
+            rate: finalVoiceSettings.rate,
+            pitch: finalVoiceSettings.pitch,
           },
           credentials: {
             azureKey: settings.azureKey,
@@ -244,6 +245,10 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
             // Verify tab still exists before injecting
             await browser.tabs.get(activeTab.id);
             await ensureContentScriptLoaded(activeTab.id);
+
+            // Give content script additional time to fully initialize
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             const response = await browser.tabs.sendMessage(activeTab.id, {
               type: "PLAY_STREAMING_TTS",
               text: info.selectionText,
@@ -400,8 +405,8 @@ async function ensureContentScriptLoaded(tabId) {
       throw scriptError;
     }
 
-    // Wait a moment for script to initialize
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Wait for script to initialize (Firefox needs more time on first install)
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Verify injection worked
     try {
@@ -426,6 +431,6 @@ async function ensureContentScriptLoaded(tabId) {
 }
 
 // Debug voice settings in storage
-browser.storage.local.get(["languageVoiceSettings"]).then((result) => {
-  console.log("Current language voice settings in storage:", result.languageVoiceSettings);
+browser.storage.local.get(["voiceSettings"]).then((result) => {
+  console.log("Current voice settings in storage:", result.voiceSettings);
 });
