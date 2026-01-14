@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [5.0.0] - 2025-01-14
+
+### Changed
+
+- Unified settings storage: merged `settings` and `voiceSettings` into single storage object
+- Refactored AudioService with cleaner streaming playback using AbortController
+- Redesigned settings, popup, and mini window UI with consistent flat design
+- Fixed Voice Selection layout stability with CSS Grid
+
+### Removed
+
+- Removed deprecated `voiceSettingsStorage.ts` (replaced by unified `settingsStorage.ts`)
+
+---
+
 ## [4.2.1] - 2025-01-13
 
 ### Fixed
