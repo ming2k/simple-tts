@@ -1,12 +1,13 @@
 import browser from "webextension-polyfill";
-import { getVoiceSettingsWithDefaults, saveVoiceSettings } from "../utils/voiceSettingsStorage";
+import { getSettings, saveSettings } from "../utils/settingsStorage";
+import { defaultSettings } from "../types/storage";
 
 console.log("[Simple TTS] Background script loaded/reloaded");
 
 // Separate function to create context menu
 async function createContextMenu() {
   try {
-    await browser.contextMenus.removeAll(); // Clean up any existing menu items
+    await browser.contextMenus.removeAll();
     await browser.contextMenus.create({
       id: "translate-selected-text",
       title: "Read selected text",
@@ -22,37 +23,23 @@ createContextMenu();
 
 // Keep the onInstalled listener for other initialization tasks
 browser.runtime.onInstalled.addListener(async (details) => {
-  // Create context menu on install/update
   await createContextMenu();
 
-  // Handle first installation
   if (details.reason === "install") {
-    // Initialize settings with environment variables
-    const defaultSettings = {
-      voice: "en-US-AvaMultilingualNeural",
-      rate: 1,
-      pitch: 1,
+    const initialSettings = {
+      ...defaultSettings,
       azureKey: process.env.AZURE_SPEECH_KEY || "",
       azureRegion: process.env.AZURE_REGION || "",
-      showKey: false,
-      onboardingCompleted: false,
     };
 
-    // Save settings to storage
     await browser.storage.local.set({
-      settings: defaultSettings,
+      settings: initialSettings,
       onboardingCompleted: false,
-    });
-    await saveVoiceSettings({
-      voice: defaultSettings.voice,
-      rate: defaultSettings.rate,
-      pitch: defaultSettings.pitch,
     });
 
     // Set badge to indicate setup needed if no Azure credentials
-    if (!defaultSettings.azureKey || !defaultSettings.azureRegion) {
+    if (!initialSettings.azureKey || !initialSettings.azureRegion) {
       try {
-        // Use the appropriate API for the browser version
         const actionAPI = browser.action || browser.browserAction;
         if (actionAPI) {
           actionAPI.setBadgeText({ text: "!" });
@@ -63,20 +50,17 @@ browser.runtime.onInstalled.addListener(async (details) => {
       }
     }
 
-    // Always show onboarding for new installations
-    // Only skip if we have pre-configured credentials (development builds)
     const isDevelopmentWithCreds = (
       typeof process !== 'undefined' &&
       process.env &&
       process.env.NODE_ENV === "development" &&
-      defaultSettings.azureKey &&
-      defaultSettings.azureRegion
+      initialSettings.azureKey &&
+      initialSettings.azureRegion
     );
 
     if (isDevelopmentWithCreds) {
       await browser.storage.local.set({ onboardingCompleted: true });
     } else {
-      // Always show onboarding for production builds and new users
       browser.tabs.create({
         url: browser.runtime.getURL("onboarding.html"),
       });
@@ -93,14 +77,11 @@ browser.runtime.onMessage.addListener((message) => {
   }
 });
 
-// Modify the context menu click handler
+// Context menu click handler
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
-  console.log("Context menu clicked:", info);
-
   if (info.menuItemId === "translate-selected-text" && info.selectionText) {
-    console.log("Processing TTS for selected text:", info.selectionText);
+    console.log("Processing TTS for selected text");
 
-    // Get the current active tab instead of relying on the tab parameter
     let activeTab;
     try {
       const tabs = await browser.tabs.query({ active: true, currentWindow: true });
@@ -109,40 +90,29 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       activeTab = tabs[0];
     } catch (tabError) {
-      await showNotification('TTS Error', 'Could not find active tab. Please try again.');
+      await showNotification('TTS Error', 'Could not find active tab.');
       return;
     }
 
-    // Validate the active tab
     if (!activeTab || !activeTab.id || activeTab.id < 0) {
-      await showNotification('TTS Error', 'Invalid active tab. Please try again.');
+      await showNotification('TTS Error', 'Invalid active tab.');
       return;
     }
 
-    // Double-check the tab still exists
     try {
       const currentTab = await browser.tabs.get(activeTab.id);
       if (!currentTab || currentTab.discarded) {
-        throw new Error('Tab is no longer valid or has been discarded');
+        throw new Error('Tab is no longer valid');
       }
     } catch (tabError) {
-      await showNotification('TTS Error', `Active tab is no longer valid: ${tabError.message}`);
+      await showNotification('TTS Error', 'Active tab is no longer valid.');
       return;
     }
 
     try {
-      const { settings, voiceSettings } = await browser.storage.local.get([
-        "settings",
-        "voiceSettings",
-        "languageVoiceSettings"
-      ]);
-      console.log("Retrieved settings:", settings);
-      if (!voiceSettings) {
-        const normalized = await getVoiceSettingsWithDefaults();
-        await saveVoiceSettings(normalized);
-      }
+      const settings = await getSettings();
 
-      if (!settings?.azureKey || !settings?.azureRegion) {
+      if (!settings.azureKey || !settings.azureRegion) {
         await showNotification(
           "Configuration Error",
           "Azure credentials not configured. Please check your settings.",
@@ -150,42 +120,23 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         return;
       }
 
-      // Get voice settings (with defaults and legacy migration support)
-      const finalVoiceSettings = await getVoiceSettingsWithDefaults();
-
-      /**
-       * CRITICAL: Stop previous audio and clean up mini window BEFORE starting new playback
-       *
-       * WHY THIS MATTERS:
-       * - Each context menu click should create a fresh mini window
-       * - STOP_AUDIO removes the old mini window from DOM
-       * - PLAY_STREAMING_TTS creates a new mini window
-       * - Without this, multiple mini windows could appear on screen
-       *
-       * ERROR HANDLING:
-       * - If content script is not loaded, STOP_AUDIO will fail
-       * - We catch the error and inject content script for next step
-       * - This is safe because if no content script exists, there's no audio to stop
-       */
+      // Stop previous audio
       try {
         await browser.tabs.sendMessage(activeTab.id, { type: "STOP_AUDIO" });
       } catch (err) {
-        console.log("Could not send STOP_AUDIO message to tab:", err.message);
-        // Content script not loaded yet - inject it for the next step
+        console.log("Could not send STOP_AUDIO:", err.message);
         await ensureContentScriptLoaded(activeTab.id);
       }
 
-      // Send TTS request to content script
-      console.log("Sending PLAY_STREAMING_TTS message to tab:", activeTab.id);
-
+      // Send TTS request
       try {
         const response = await browser.tabs.sendMessage(activeTab.id, {
           type: "PLAY_STREAMING_TTS",
           text: info.selectionText,
           settings: {
-            voice: finalVoiceSettings.voice,
-            rate: finalVoiceSettings.rate,
-            pitch: finalVoiceSettings.pitch,
+            voice: settings.voice,
+            rate: settings.rate,
+            pitch: settings.pitch,
           },
           credentials: {
             azureKey: settings.azureKey,
@@ -194,126 +145,69 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         });
         console.log("PLAY_STREAMING_TTS response:", response);
       } catch (error) {
-        console.error("Failed to send PLAY_STREAMING_AUDIO message:", error);
+        console.error("Failed to send message:", error);
 
-        /**
-         * IMPORTANT: Tab closure detection
-         *
-         * WHY CHECK FOR TAB CLOSURE:
-         * - User might close tab while TTS is being prepared
-         * - Attempting to inject or retry on a closed tab causes errors
-         * - Best to silently fail when tab is gone
-         */
         if (error.message.includes('No tab with id') || error.message.includes('Invalid tab ID')) {
-          console.log("Tab was closed, skipping retry");
           return;
         }
 
-        /**
-         * Handle recoverable errors
-         *
-         * "Could not establish connection" = content script not loaded
-         * "Extension context invalidated" = extension was reloaded (non-recoverable)
-         */
-        if (error.message.includes('Could not establish connection')) {
-          console.log("Connection failed, attempting content script injection...");
-        } else if (error.message.includes('Extension context invalidated')) {
-          await showNotification(
-            "Extension Error",
-            "Extension context was invalidated. Please refresh the page."
-          );
+        if (error.message.includes('Extension context invalidated')) {
+          await showNotification("Extension Error", "Please refresh the page.");
           return;
         }
 
-        /**
-         * RETRY PATTERN: One automatic retry with content script injection
-         *
-         * STEPS:
-         * 1. Verify tab still exists
-         * 2. Inject content script
-         * 3. Retry sending PLAY_STREAMING_TTS message
-         * 4. If this fails, show user-friendly error message
-         */
-        if (!error.message.includes('No tab with id') && !error.message.includes('Invalid tab ID')) {
-          try {
-            // Verify tab still exists before injecting
-            await browser.tabs.get(activeTab.id);
-            await ensureContentScriptLoaded(activeTab.id);
+        // Retry with content script injection
+        try {
+          await browser.tabs.get(activeTab.id);
+          await ensureContentScriptLoaded(activeTab.id);
+          await new Promise(resolve => setTimeout(resolve, 100));
 
-            // Give content script additional time to fully initialize
-            await new Promise(resolve => setTimeout(resolve, 100));
-
-            const response = await browser.tabs.sendMessage(activeTab.id, {
-              type: "PLAY_STREAMING_TTS",
-              text: info.selectionText,
-              settings: {
-                voice: voiceSettings.voice,
-                rate: voiceSettings.rate,
-                pitch: voiceSettings.pitch,
-              },
-              credentials: {
-                azureKey: settings.azureKey,
-                azureRegion: settings.azureRegion,
-              }
-            });
-            console.log("PLAY_STREAMING_TTS response after injection:", response);
-          } catch (retryError) {
-            console.error("Retry failed:", retryError);
-
-            // Don't show notification if tab was closed
-            if (retryError.message.includes('No tab with id') || retryError.message.includes('Invalid tab ID')) {
-              console.log("Tab was closed during retry, skipping error notification");
-              return;
+          await browser.tabs.sendMessage(activeTab.id, {
+            type: "PLAY_STREAMING_TTS",
+            text: info.selectionText,
+            settings: {
+              voice: settings.voice,
+              rate: settings.rate,
+              pitch: settings.pitch,
+            },
+            credentials: {
+              azureKey: settings.azureKey,
+              azureRegion: settings.azureRegion,
             }
-
-            // More specific error messages based on error type
-            let errorMessage = "Could not communicate with content script.";
-            let errorTitle = "TTS Playback Error";
-
-            if (retryError.message.includes('Could not establish connection')) {
-              errorMessage = "Content script not loaded. Please refresh the page and try again.";
-            } else if (retryError.message.includes('Cannot inject into system pages')) {
-              errorMessage = "TTS cannot be used on this page. Try selecting text on a regular webpage.";
-              errorTitle = "TTS Not Available";
-            } else if (retryError.message.includes('Extension context invalidated')) {
-              errorMessage = "Extension needs to be reloaded. Please refresh the page.";
-            } else if (retryError.message.includes('Please refresh the page')) {
-              errorMessage = retryError.message;
-              errorTitle = "Page Refresh Required";
-            } else if (retryError.message.includes('not responding after injection')) {
-              errorMessage = "Content script failed to load. Please refresh the page and try again.";
-            }
-
-            await showNotification(errorTitle, errorMessage);
+          });
+        } catch (retryError) {
+          if (retryError.message.includes('No tab with id') || retryError.message.includes('Invalid tab ID')) {
+            return;
           }
+
+          let errorMessage = "Could not communicate with content script.";
+          if (retryError.message.includes('Could not establish connection')) {
+            errorMessage = "Please refresh the page and try again.";
+          } else if (retryError.message.includes('Cannot inject into system pages')) {
+            errorMessage = "TTS cannot be used on this page.";
+          }
+
+          await showNotification("TTS Error", errorMessage);
         }
       }
     } catch (error) {
       console.error("TTS error:", error);
 
-      // Don't show notification if tab was closed
       if (error.message.includes('No tab with id') || error.message.includes('Invalid tab ID')) {
-        console.log("Tab was closed during TTS operation");
         return;
       }
 
-      await showNotification(
-        "Text-to-Speech Error",
-        `Failed to convert text to speech: ${error.message}`,
-      );
-      // Hide the window if there's an error and tab still exists
+      await showNotification("TTS Error", error.message);
       try {
         await browser.tabs.get(activeTab.id);
         await browser.tabs.sendMessage(activeTab.id, { type: "STOP_AUDIO" });
       } catch (err) {
-        console.log("Could not send STOP_AUDIO message to tab:", err.message);
+        // Ignore
       }
     }
   }
 });
 
-
-// Helper function to show notifications
 async function showNotification(title, message) {
   try {
     await browser.notifications.create({
@@ -323,108 +217,74 @@ async function showNotification(title, message) {
       message,
     });
   } catch (error) {
-    console.error("Failed to show notification:", error);
-    // Service workers can't use alert, just log the error
-    console.log(`Notification fallback: ${title}: ${message}`);
+    console.log(`Notification: ${title}: ${message}`);
   }
 }
 
-// Helper function to ensure content script is loaded (for Chrome compatibility)
 async function ensureContentScriptLoaded(tabId) {
   try {
-    // First check if content script is already loaded by sending a ping
     try {
       const response = await browser.tabs.sendMessage(tabId, { type: "PING" });
       if (response && response.pong) {
-        console.log("Content script already loaded for tab:", tabId);
         return true;
       }
     } catch (pingError) {
-      console.log("Content script not responsive, attempting injection...");
+      // Content script not loaded
     }
 
-    // Get tab info to check if injection is allowed
     let tab;
     try {
       tab = await browser.tabs.get(tabId);
     } catch (tabError) {
-      // More specific error handling
-      if (tabError.message.includes('No tab with id')) {
-        throw new Error(`Tab ${tabId} was closed or no longer exists.`);
-      } else if (tabError.message.includes('Invalid tab ID')) {
-        throw new Error(`Invalid tab ID: ${tabId}. Tab may have been closed.`);
-      } else {
-        throw new Error(`Could not access tab ${tabId}: ${tabError.message}`);
-      }
+      throw new Error(`Tab ${tabId} no longer exists.`);
     }
 
     if (!tab || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('moz-extension://')) {
       throw new Error('Cannot inject into system pages');
     }
 
-    // Check if tab is still active and not discarded
     if (tab.discarded) {
-      throw new Error('Tab is discarded and cannot receive scripts');
+      throw new Error('Tab is discarded');
     }
 
-    // Try to inject the content script using webextension-polyfill
-    // Different manifest versions have different APIs:
-    // - Chrome MV3: browser.scripting.executeScript()
-    // - Firefox MV2: browser.tabs.executeScript()
     try {
       if (browser.scripting?.executeScript) {
-        // Chrome/Chromium Manifest V3
         await browser.scripting.executeScript({
           target: { tabId: tabId },
           files: ['content.js']
         });
-        console.log("Content script injected (scripting API):", tabId);
       } else if (browser.tabs?.executeScript) {
-        // Firefox Manifest V2 or older Chrome
         await browser.tabs.executeScript(tabId, {
           file: 'content.js'
         });
-        console.log("Content script injected (tabs API):", tabId);
       } else {
         throw new Error('No script injection API available');
       }
     } catch (scriptError) {
-      // Check if tab was closed during injection
       if (scriptError.message.includes('No tab with id') || scriptError.message.includes('Invalid tab ID')) {
-        throw new Error(`Tab ${tabId} was closed during script injection.`);
-      }
-      if (scriptError.message.includes('No script injection API')) {
-        throw new Error('Please refresh the page to enable TTS on this tab.');
+        throw new Error(`Tab ${tabId} was closed.`);
       }
       throw scriptError;
     }
 
-    // Wait for script to initialize (Firefox needs more time on first install)
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Verify injection worked
     try {
       const response = await browser.tabs.sendMessage(tabId, { type: "PING" });
       if (response && response.pong) {
-        console.log("Content script injection verified for tab:", tabId);
         return true;
-      } else {
-        throw new Error('Content script not responding after injection');
       }
+      throw new Error('Content script not responding');
     } catch (verifyError) {
-      // Check if tab was closed during verification
-      if (verifyError.message.includes('No tab with id') || verifyError.message.includes('Invalid tab ID')) {
-        throw new Error(`Tab ${tabId} was closed during verification.`);
-      }
-      throw new Error(`Content script injection failed verification: ${verifyError.message}`);
+      throw new Error(`Injection failed: ${verifyError.message}`);
     }
   } catch (error) {
-    console.error("Could not ensure content script loaded:", error.message);
+    console.error("Content script load error:", error.message);
     throw error;
   }
 }
 
-// Debug voice settings in storage
-browser.storage.local.get(["voiceSettings"]).then((result) => {
-  console.log("Current voice settings in storage:", result.voiceSettings);
+// Debug
+browser.storage.local.get(["settings"]).then((result) => {
+  console.log("Current settings:", result.settings);
 });

@@ -1,33 +1,32 @@
-// Voice settings per language/locale
-export interface VoiceSettings {
+export interface Settings {
+  // API credentials
+  azureKey: string;
+  azureRegion: string;
+  // Voice settings
   voice: string;
   rate: number;
   pitch: number;
+  // UI state
+  showKey?: boolean;
 }
 
-// Language-specific voice settings mapping (for legacy migration)
-export interface LanguageVoiceSettings {
-  [languageKey: string]: VoiceSettings;
-}
-
-// Default values
-export const defaultVoiceSettings: VoiceSettings = {
+export const defaultSettings: Settings = {
+  azureKey: '',
+  azureRegion: '',
   voice: 'en-US-AvaMultilingualNeural',
   rate: 1.0,
-  pitch: 1.0
+  pitch: 1.0,
+  showKey: false,
 };
 
-// Type guards for runtime type checking
-export function isVoiceSettings(obj: unknown): obj is VoiceSettings {
-  return obj !== null &&
-    typeof obj === 'object' &&
-    'voice' in obj && typeof (obj as VoiceSettings).voice === 'string' &&
-    'rate' in obj && typeof (obj as VoiceSettings).rate === 'number' &&
-    'pitch' in obj && typeof (obj as VoiceSettings).pitch === 'number';
-}
-
-export function isLanguageVoiceSettings(obj: unknown): obj is LanguageVoiceSettings {
-  return obj !== null &&
-    typeof obj === 'object' &&
-    Object.values(obj as Record<string, unknown>).every(value => isVoiceSettings(value));
+export function isSettings(obj: unknown): obj is Settings {
+  if (!obj || typeof obj !== 'object') return false;
+  const s = obj as Settings;
+  return (
+    typeof s.azureKey === 'string' &&
+    typeof s.azureRegion === 'string' &&
+    typeof s.voice === 'string' &&
+    typeof s.rate === 'number' &&
+    typeof s.pitch === 'number'
+  );
 }

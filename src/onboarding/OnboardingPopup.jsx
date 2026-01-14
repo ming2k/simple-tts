@@ -78,8 +78,13 @@ export function OnboardingPopup() {
         await browser.storage.local.set({
           settings: {
             azureKey,
-            azureRegion
-          }
+            azureRegion,
+            voice: 'en-US-AvaMultilingualNeural',
+            rate: 1.0,
+            pitch: 1.0,
+            showKey: false
+          },
+          onboardingCompleted: true
         });
         setCurrentStep(3);
       } catch (err) {

@@ -3,7 +3,6 @@ import { Section, SaveButton } from '../common';
 import styled from 'styled-components';
 import { AudioService } from '../../../services/audioService';
 import { testVoice } from '../../../utils/audioPlayer';
-import { getVoiceSettingsWithDefaults, saveVoiceSettings } from '../../../utils/voiceSettingsStorage';
 
 const Container = styled.div`
   display: flex;
@@ -219,30 +218,13 @@ const TestButton = styled.button`
   }
 `;
 
-export function AudioSettings({ groupedVoices, onSave, isSaving, voicesError }) {
-  const [voiceSettings, setVoiceSettings] = useState({
-    voice: 'en-US-JennyNeural',
-    speed: 1.0,
-    pitch: 1.0
-  });
+export function AudioSettings({ settings, groupedVoices, onChange, onSave, isSaving, voicesError }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioService] = useState(() => new AudioService());
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGender, setFilterGender] = useState('all');
   const [filterMultilingual, setFilterMultilingual] = useState('all');
   const [filterLocale, setFilterLocale] = useState('all');
-
-  useEffect(() => {
-    getVoiceSettingsWithDefaults()
-      .then(saved => {
-        setVoiceSettings({
-          voice: saved.voice || 'en-US-JennyNeural',
-          speed: saved.rate ?? 1.0,
-          pitch: saved.pitch ?? 1.0
-        });
-      })
-      .catch(err => console.error('Failed to load voice settings:', err));
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -290,27 +272,14 @@ export function AudioSettings({ groupedVoices, onSave, isSaving, voicesError }) 
     return voices;
   }, [allVoices, searchTerm, filterGender, filterMultilingual, filterLocale]);
 
-  const updateSetting = useCallback((field, value) => {
-    setVoiceSettings(prev => ({ ...prev, [field]: value }));
-  }, []);
-
-  const handleSave = useCallback(async () => {
-    await saveVoiceSettings({
-      voice: voiceSettings.voice,
-      rate: voiceSettings.speed,
-      pitch: voiceSettings.pitch
-    });
-    onSave();
-  }, [voiceSettings, onSave]);
-
   const handleTestVoice = useCallback(async () => {
     if (isPlaying) return;
     setIsPlaying(true);
     try {
       await testVoice(audioService, {
-        voice: voiceSettings.voice,
-        rate: voiceSettings.speed,
-        pitch: voiceSettings.pitch
+        voice: settings.voice,
+        rate: settings.rate,
+        pitch: settings.pitch
       });
     } catch (err) {
       console.error('Test voice failed:', err);
@@ -318,7 +287,7 @@ export function AudioSettings({ groupedVoices, onSave, isSaving, voicesError }) 
     } finally {
       setIsPlaying(false);
     }
-  }, [isPlaying, audioService, voiceSettings]);
+  }, [isPlaying, audioService, settings]);
 
   if (voicesError) {
     return (
@@ -383,8 +352,9 @@ export function AudioSettings({ groupedVoices, onSave, isSaving, voicesError }) 
           <Row>
             <Label>Voice:</Label>
             <Select
-              value={voiceSettings.voice}
-              onChange={e => updateSetting('voice', e.target.value)}
+              name="voice"
+              value={settings.voice}
+              onChange={onChange}
             >
               {filteredVoices.length === 0 ? (
                 <option value="">No voices match filters</option>
@@ -407,13 +377,14 @@ export function AudioSettings({ groupedVoices, onSave, isSaving, voicesError }) 
             <SliderRow>
               <Slider
                 type="range"
+                name="rate"
                 min="0.5"
                 max="2.0"
                 step="0.1"
-                value={voiceSettings.speed}
-                onChange={e => updateSetting('speed', parseFloat(e.target.value))}
+                value={settings.rate}
+                onChange={onChange}
               />
-              <SliderValue>{voiceSettings.speed.toFixed(1)}x</SliderValue>
+              <SliderValue>{settings.rate.toFixed(1)}x</SliderValue>
             </SliderRow>
           </Row>
 
@@ -422,13 +393,14 @@ export function AudioSettings({ groupedVoices, onSave, isSaving, voicesError }) 
             <SliderRow>
               <Slider
                 type="range"
+                name="pitch"
                 min="0.5"
                 max="2.0"
                 step="0.1"
-                value={voiceSettings.pitch}
-                onChange={e => updateSetting('pitch', parseFloat(e.target.value))}
+                value={settings.pitch}
+                onChange={onChange}
               />
-              <SliderValue>{voiceSettings.pitch.toFixed(1)}x</SliderValue>
+              <SliderValue>{settings.pitch.toFixed(1)}x</SliderValue>
             </SliderRow>
           </Row>
         </Card>
@@ -438,7 +410,7 @@ export function AudioSettings({ groupedVoices, onSave, isSaving, voicesError }) 
         <TestButton onClick={handleTestVoice} disabled={isPlaying || filteredVoices.length === 0}>
           {isPlaying ? 'Playing...' : 'Test'}
         </TestButton>
-        <SaveButton onClick={handleSave} $saving={isSaving}>
+        <SaveButton onClick={onSave} $saving={isSaving}>
           {isSaving ? 'Saved' : 'Save'}
         </SaveButton>
       </ButtonRow>
