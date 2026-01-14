@@ -3,18 +3,8 @@ import styled from 'styled-components';
 import { Section, InputGroup, SaveButton } from '../common';
 import { SimpleTTS } from '../../../services/ttsService';
 
-// Icons
 const EyeIcon = ({ isVisible }) => (
-  <svg 
-    width="20" 
-    height="20" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round"
-  >
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     {isVisible ? (
       <>
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -29,164 +19,70 @@ const EyeIcon = ({ isVisible }) => (
   </svg>
 );
 
-// Styled Components
-const Container = styled.div`
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-`;
-
-const Header = styled.div`
-  margin-bottom: 24px;
-`;
-
-const HeaderTitle = styled.h2`
-  margin: 0 0 8px 0;
-`;
-
-const HeaderDescription = styled.p`
-  color: var(--text-tertiary);
-  margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
-`;
-
-const DocumentLink = styled.a`
-  color: var(--text-accent);
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 500;
-  
-  &:hover {
-    text-decoration: underline;
-  }
-
-  svg {
-    width: 16px;
-    height: 16px;
-  }
-`;
-
-const InfoBox = styled.div`
-  background: var(--bg-secondary);
-  border-left: 4px solid var(--text-accent);
-  padding: 12px 16px;
-  margin: 24px 0;
-  border-radius: 4px;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  line-height: 1.5;
-`;
-
 const InputWrapper = styled.div`
   position: relative;
   display: flex;
   align-items: center;
-  width: 100%;
-  max-width: ${props => props.$short ? '200px' : '320px'};
+  max-width: ${props => props.$short ? '180px' : '320px'};
 `;
 
 const StyledInput = styled.input`
   width: 100%;
-  height: 44px;
-  padding: 0 ${props => props.$hasEye ? '40px' : '12px'} 0 12px;
-  border: 1px solid var(--border-primary);
-  border-radius: 6px;
-  font-size: 1rem;
-  transition: all 0.2s;
+  padding: 10px 12px;
+  padding-right: ${props => props.$hasEye ? '40px' : '12px'};
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
   font-family: ${props => props.$isKey ? 'monospace' : 'inherit'};
-  box-sizing: border-box;
-  text-overflow: ellipsis;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  
-  &[type="password"] {
-    font-family: text-security-disc;
-    letter-spacing: 1px;
-  }
 
   &:focus {
+    border-color: var(--accent);
     outline: none;
-    border-color: var(--text-accent);
-    box-shadow: 0 0 0 3px var(--shadow-focus);
   }
 
   &::placeholder {
-    color: var(--text-tertiary);
+    color: var(--text-muted);
   }
 `;
 
 const EyeButton = styled.button`
   position: absolute;
-  right: 6px;
-  width: 30px;
-  height: 30px;
+  right: 4px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text-tertiary);
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  padding: 0;
-  z-index: 1;
+  color: var(--text-muted);
+  border-radius: var(--radius);
+  transition: color 0.15s;
 
   &:hover {
-    color: var(--text-primary);
-    background-color: var(--bg-hover);
-  }
-
-  &:focus {
-    outline: none;
-    background-color: var(--bg-hover);
-  }
-
-  svg {
-    width: 16px;
-    height: 16px;
-    stroke-width: 2px;
+    color: var(--text);
   }
 `;
 
 const ButtonContainer = styled.div`
   max-width: 320px;
-  margin-top: 24px;
+  margin-top: 20px;
 `;
 
-const ValidationMessage = styled.div`
+const Message = styled.div`
   margin-top: 8px;
   padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 14px;
-  ${props => props.$isError ? `
-    background-color: #fee2e2;
-    color: #dc2626;
-    border: 1px solid #fecaca;
-  ` : `
-    background-color: #dcfce7;
-    color: #16a34a;
-    border: 1px solid #bbf7d0;
-  `}
+  border-radius: var(--radius);
+  font-size: 13px;
+  background: ${props => props.$error ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)'};
+  color: ${props => props.$error ? 'var(--error)' : 'var(--success)'};
+  border: 1px solid ${props => props.$error ? 'var(--error)' : 'var(--success)'};
 `;
 
-// ApiInput Component
-function ApiInput({
-  label,
-  id,
-  type = 'text',
-  value,
-  onChange,
-  placeholder,
-  hasEye,
-  isKey,
-  isShort,
-  showKey,
-  onToggleVisibility
-}) {
+function ApiInput({ label, id, type = 'text', value, onChange, placeholder, hasEye, isKey, isShort, showKey, onToggleVisibility }) {
   return (
     <InputGroup>
       <label htmlFor={id}>{label}</label>
@@ -202,11 +98,7 @@ function ApiInput({
           $isKey={isKey}
         />
         {hasEye && (
-          <EyeButton
-            type="button"
-            onClick={onToggleVisibility}
-            aria-label={showKey ? "Hide key" : "Show key"}
-          >
+          <EyeButton type="button" onClick={onToggleVisibility} aria-label={showKey ? "Hide key" : "Show key"}>
             <EyeIcon isVisible={showKey} />
           </EyeButton>
         )}
@@ -215,26 +107,26 @@ function ApiInput({
   );
 }
 
-// Main Component
 export function ApiSettings({ settings, onChange, onSave, isSaving }) {
   const [isValidating, setIsValidating] = useState(false);
-  const [validationMessage, setValidationMessage] = useState(null);
-  const [validationError, setValidationError] = useState(null);
+  const [message, setMessage] = useState(null);
+  const [isError, setIsError] = useState(false);
 
   const validateCredentials = async (credentials) => {
     try {
       setIsValidating(true);
-      setValidationMessage('Validating credentials...');
-      setValidationError(null);
+      setMessage('Validating...');
+      setIsError(false);
 
       const ttsService = new SimpleTTS(credentials.azureKey, credentials.azureRegion);
-      await ttsService.getVoicesList(); // This will throw if credentials are invalid
+      await ttsService.getVoicesList();
 
-      setValidationMessage('Credentials validated successfully');
+      setMessage('Credentials validated');
       return true;
     } catch (error) {
       console.error('Validation failed:', error);
-      setValidationError('Invalid credentials. Please check your Azure key and region.');
+      setMessage('Invalid credentials');
+      setIsError(true);
       return false;
     } finally {
       setIsValidating(false);
@@ -242,91 +134,65 @@ export function ApiSettings({ settings, onChange, onSave, isSaving }) {
   };
 
   const handleSave = async () => {
-    // Clear previous messages
-    setValidationMessage(null);
-    setValidationError(null);
+    setMessage(null);
+    setIsError(false);
 
-    // Validate required fields
     if (!settings.azureKey || !settings.azureRegion) {
-      setValidationError('Please fill in both Azure Key and Region');
+      setMessage('Please fill in both fields');
+      setIsError(true);
       return;
     }
 
-    // Validate credentials
     const isValid = await validateCredentials(settings);
-    
+
     if (isValid) {
       await onSave();
-      // Keep success message visible for a moment
-      setTimeout(() => {
-        setValidationMessage(null);
-      }, 3000);
+      setTimeout(() => setMessage(null), 3000);
     }
   };
 
   const handleToggleVisibility = () => {
     onChange({
-      target: {
-        name: 'showKey',
-        type: 'checkbox',
-        checked: !settings.showKey
-      }
+      target: { name: 'showKey', type: 'checkbox', checked: !settings.showKey }
     });
   };
 
   return (
     <Section>
-      <Container>
-        <Header>
-          <HeaderTitle>API Settings</HeaderTitle>
-        </Header>
+      <h2>API Settings</h2>
+      <p style={{ color: 'var(--text-secondary)', marginBottom: '16px' }}>
+        Configure your Azure Speech Service credentials.
+      </p>
 
-        <ApiInput
-          label="Azure Speech Key"
-          id="azureKey"
-          type={settings.showKey ? "text" : "password"}
-          value={settings.azureKey}
-          onChange={onChange}
-          placeholder="Enter your Azure Speech Service key"
-          hasEye
-          isKey
-          showKey={settings.showKey}
-          onToggleVisibility={handleToggleVisibility}
-        />
+      <ApiInput
+        label="Azure Speech Key"
+        id="azureKey"
+        type={settings.showKey ? "text" : "password"}
+        value={settings.azureKey}
+        onChange={onChange}
+        placeholder="Enter your Azure Speech Service key"
+        hasEye
+        isKey
+        showKey={settings.showKey}
+        onToggleVisibility={handleToggleVisibility}
+      />
 
-        <ApiInput
-          label="Azure Region"
-          id="azureRegion"
-          value={settings.azureRegion}
-          onChange={onChange}
-          placeholder="e.g., japanwest"
-          isShort
-        />
+      <ApiInput
+        label="Azure Region"
+        id="azureRegion"
+        value={settings.azureRegion}
+        onChange={onChange}
+        placeholder="e.g., japanwest"
+        isShort
+      />
 
-        {validationError && (
-          <ValidationMessage $isError>
-            {validationError}
-          </ValidationMessage>
-        )}
+      {message && <Message $error={isError}>{message}</Message>}
 
-        {validationMessage && (
-          <ValidationMessage>
-            {validationMessage}
-          </ValidationMessage>
-        )}
-
-        <ButtonContainer>
-          <SaveButton 
-            onClick={handleSave} 
-            $saving={isSaving || isValidating}
-            disabled={isValidating}
-          >
-            {isValidating ? 'Validating...' : 
-             isSaving ? 'Saved ✓' : 
-             'Save API Settings'}
-          </SaveButton>
-        </ButtonContainer>
-      </Container>
+      <ButtonContainer>
+        <SaveButton onClick={handleSave} $saving={isSaving || isValidating} disabled={isValidating}>
+          {isValidating ? 'Validating...' : isSaving ? 'Saved' : 'Save'}
+        </SaveButton>
+      </ButtonContainer>
     </Section>
   );
-} 
+}

@@ -2,139 +2,122 @@ import React from 'react';
 import { Section } from '../common';
 import styled from 'styled-components';
 
-const SponsorContent = styled.div`
+const Content = styled.div`
   text-align: center;
-  padding: 1rem 0;
 `;
 
-const SponsorOptions = styled.div`
+const Text = styled.p`
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+`;
+
+const Buttons = styled.div`
   display: flex;
-  gap: 1rem;
+  gap: 12px;
   justify-content: center;
-  margin: 1.5rem 0;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
 `;
 
-const SponsorButton = styled.a`
+const Button = styled.a`
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--radius);
   text-decoration: none;
+  font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: opacity 0.15s;
+
+  &:hover {
+    opacity: 0.9;
+  }
 
   &.github {
     background: #24292e;
     color: white;
-    &:hover {
-      background: #1b1f23;
-    }
   }
 
   &.coffee {
     background: #ffdd00;
-    color: #000000;
-    &:hover {
-      background: #e5c700;
-    }
+    color: #000;
   }
 `;
 
-const ChinesePayment = styled.div`
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid #eee;
+const Divider = styled.div`
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+  margin-top: 8px;
+`;
+
+const SubTitle = styled.h3`
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px 0;
 `;
 
 const QRCodes = styled.div`
   display: flex;
   justify-content: center;
-  gap: 2rem;
-  margin: 1rem 0;
+  gap: 24px;
 
-  @media (max-width: 600px) {
+  @media (max-width: 500px) {
     flex-direction: column;
     align-items: center;
   }
 `;
 
-const QRCodeContainer = styled.div`
+const QRItem = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 `;
 
 const QRCode = styled.img`
-  width: 200px;
-  height: 200px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  transition: transform 0.2s ease;
-
-  &:hover {
-    transform: scale(1.05);
-  }
-
-  @media (max-width: 600px) {
-    width: 180px;
-    height: 180px;
-  }
+  width: 160px;
+  height: 160px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
 `;
 
-const PaymentLabel = styled.span`
-  font-size: 1rem;
-  color: #4a5568;
+const Label = styled.span`
+  font-size: 13px;
+  color: var(--text-secondary);
 `;
 
 export function Sponsor() {
   return (
     <Section>
-      <h2>Support the Project</h2>
-      <SponsorContent>
-        <p>If you find this extension helpful, consider supporting its development!</p>
-        
-        <SponsorOptions>
-          <SponsorButton 
-            href="https://github.com/sponsors/ming2k" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="github"
-          >
-            ❤️ Sponsor on GitHub
-          </SponsorButton>
-          
-          <SponsorButton 
-            href="https://buymeacoffee.com/ming2k"
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="coffee"
-          >
-            ☕ Buy me a coffee
-          </SponsorButton>
-        </SponsorOptions>
+      <h2>Support</h2>
+      <Content>
+        <Text>If you find this extension helpful, consider supporting its development.</Text>
 
-        <ChinesePayment>
-          <h3>中国用户赞助方式</h3>
+        <Buttons>
+          <Button href="https://github.com/sponsors/ming2k" target="_blank" rel="noopener noreferrer" className="github">
+            Sponsor on GitHub
+          </Button>
+          <Button href="https://buymeacoffee.com/ming2k" target="_blank" rel="noopener noreferrer" className="coffee">
+            Buy me a coffee
+          </Button>
+        </Buttons>
+
+        <Divider>
+          <SubTitle>Chinese Users</SubTitle>
           <QRCodes>
-            <QRCodeContainer>
-              <QRCode 
-                src="https://cdn.jsdelivr.net/gh/ming2k/img-hosting/mings-wechat-payment-pure-qrcode.png" 
-                alt="WeChat Pay QR Code" 
-              />
-              <PaymentLabel>微信支付</PaymentLabel>
-            </QRCodeContainer>
-            <QRCodeContainer>
-              <QRCode 
-                src="https://cdn.jsdelivr.net/gh/ming2k/img-hosting/mings-alipay-payment-pure-qrcode.png" 
-                alt="Alipay QR Code" 
-              />
-              <PaymentLabel>支付宝</PaymentLabel>
-            </QRCodeContainer>
+            <QRItem>
+              <QRCode src="https://cdn.jsdelivr.net/gh/ming2k/img-hosting/mings-wechat-payment-pure-qrcode.png" alt="WeChat Pay" />
+              <Label>WeChat Pay</Label>
+            </QRItem>
+            <QRItem>
+              <QRCode src="https://cdn.jsdelivr.net/gh/ming2k/img-hosting/mings-alipay-payment-pure-qrcode.png" alt="Alipay" />
+              <Label>Alipay</Label>
+            </QRItem>
           </QRCodes>
-        </ChinesePayment>
-      </SponsorContent>
+        </Divider>
+      </Content>
     </Section>
   );
-} 
+}

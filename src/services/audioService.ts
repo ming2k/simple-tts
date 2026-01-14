@@ -406,7 +406,13 @@ export class AudioService {
 
         this.playbackTimeoutId = window.setTimeout(() => {
           if (!this.isStopping && !resolved) {
-            reject(new Error('Audio playback timeout'));
+            // Before rejecting, check if audio actually ended
+            const duration = audio.duration;
+            if (audio.ended || (Number.isFinite(duration) && duration > 0 && audio.currentTime >= duration - 0.1)) {
+              cleanupAndResolve();
+            } else {
+              reject(new Error('Audio playback timeout'));
+            }
           }
           this.playbackTimeoutId = null;
         }, 30000) as unknown as number; // 30 second timeout
@@ -421,8 +427,9 @@ export class AudioService {
         audio.ontimeupdate = () => {
           if (resolved || this.isStopping) return;
 
-          // Check if audio has reached the end (within 0.1 seconds of duration)
-          if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1) {
+          // Check for valid duration (not Infinity or NaN) and if audio has reached the end
+          const duration = audio.duration;
+          if (Number.isFinite(duration) && duration > 0 && audio.currentTime >= duration - 0.1) {
             console.log('[AudioService] timeupdate detected audio end');
             cleanupAndResolve();
           }
@@ -489,12 +496,11 @@ export class AudioService {
       }
 
       sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
-      let hasStartedPlaying = false;
 
+      // Append all chunks
       for (let i = 0; i < cachedChunks.length; i++) {
         const chunk = cachedChunks[i];
 
-        // Check if MediaSource is still valid
         if (mediaSource.readyState !== 'open') {
           break;
         }
@@ -527,16 +533,13 @@ export class AudioService {
         } else {
           break;
         }
+      }
 
-        // Start playing once enough data is buffered
-        if (!hasStartedPlaying && audio.readyState >= 3) {
-          hasStartedPlaying = true;
-          try {
-            await audio.play();
-          } catch (playError: any) {
-            console.warn('Play failed, continuing with buffering:', playError.message);
-          }
-        }
+      // Wait for final buffer update to complete
+      let finalWaitCount = 0;
+      while (sourceBuffer.updating && finalWaitCount < 100) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+        finalWaitCount++;
       }
 
       // End the stream after all chunks are appended
@@ -565,9 +568,21 @@ export class AudioService {
           resolve();
         };
 
+        // Check if audio has already ended
+        if (audio.ended) {
+          console.log('[AudioService] handleCachedPlayback - audio already ended');
+          cleanupAndResolve();
+          return;
+        }
+
         this.playbackTimeoutId = window.setTimeout(() => {
           if (!this.isStopping && !resolved) {
-            reject(new Error('Audio playback timeout'));
+            // Before rejecting, check if audio actually ended
+            if (audio.ended || (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1)) {
+              cleanupAndResolve();
+            } else {
+              reject(new Error('Audio playback timeout'));
+            }
           }
           this.playbackTimeoutId = null;
         }, 30000) as unknown as number;
@@ -581,7 +596,9 @@ export class AudioService {
         audio.ontimeupdate = () => {
           if (resolved || this.isStopping) return;
 
-          if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1) {
+          // Check for valid duration (not Infinity or NaN)
+          const duration = audio.duration;
+          if (Number.isFinite(duration) && duration > 0 && audio.currentTime >= duration - 0.1) {
             console.log('[AudioService] timeupdate detected cached audio end');
             cleanupAndResolve();
           }
@@ -601,6 +618,21 @@ export class AudioService {
             resolve();
           }
         };
+
+        // Start playback after setting up event listeners
+        if (audio.paused && !audio.ended) {
+          audio.play().catch((playError: any) => {
+            console.warn('Cached playback failed:', playError.message);
+            if (playError.name !== 'NotAllowedError' && !resolved) {
+              resolved = true;
+              if (this.playbackTimeoutId !== null) {
+                window.clearTimeout(this.playbackTimeoutId);
+                this.playbackTimeoutId = null;
+              }
+              reject(playError);
+            }
+          });
+        }
       });
     } catch (error) {
       this.cleanup(audio, mediaSource);
@@ -646,7 +678,8 @@ export class AudioService {
       audio.ontimeupdate = () => {
         if (resolved || this.isStopping) return;
 
-        if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1) {
+        const duration = audio.duration;
+        if (Number.isFinite(duration) && duration > 0 && audio.currentTime >= duration - 0.1) {
           cleanupAndResolve();
         }
       };
@@ -706,7 +739,8 @@ export class AudioService {
       audio.ontimeupdate = () => {
         if (resolved || this.isStopping) return;
 
-        if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1) {
+        const duration = audio.duration;
+        if (Number.isFinite(duration) && duration > 0 && audio.currentTime >= duration - 0.1) {
           cleanupAndResolve();
         }
       };

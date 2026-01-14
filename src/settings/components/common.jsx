@@ -1,11 +1,11 @@
 import styled from 'styled-components';
 
 export const Section = styled.div`
-  background: var(--bg-primary);
-  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 20px;
   margin-bottom: 20px;
-  box-shadow: 0 2px 4px var(--shadow-primary);
 `;
 
 export const InputGroup = styled.div`
@@ -13,46 +13,50 @@ export const InputGroup = styled.div`
 
   label {
     display: block;
-    margin-bottom: 8px;
-    color: var(--text-tertiary);
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
   }
 
   input {
     width: 100%;
-    padding: 8px;
-    border: 1px solid var(--border-primary);
-    border-radius: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     font-size: 14px;
-    transition: border-color 0.2s;
-    background: var(--bg-primary);
-    color: var(--text-primary);
+    background: var(--bg);
+    color: var(--text);
+    transition: border-color 0.15s;
 
     &:focus {
-      border-color: var(--border-accent);
+      border-color: var(--accent);
       outline: none;
-      box-shadow: 0 0 0 2px var(--shadow-accent);
     }
 
     &::placeholder {
-      color: var(--text-tertiary);
+      color: var(--text-muted);
     }
   }
 `;
 
 export const SaveButton = styled.button`
-  background: ${props => props.$saving ? 'var(--bg-success)' : 'var(--bg-accent)'};
-  color: var(--text-white);
+  background: ${props => props.$saving ? 'var(--success)' : 'var(--accent)'};
+  color: #fff;
   border: none;
   padding: 10px 20px;
-  border-radius: 4px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  font-size: 16px;
-  width: 100%;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
+  transition: background 0.15s;
 
-  &:hover {
-    background: ${props => props.$saving ? 'var(--bg-success)' : 'var(--bg-accent-hover)'};
+  &:hover:not(:disabled) {
+    background: ${props => props.$saving ? 'var(--success)' : 'var(--accent-hover)'};
   }
-`; 
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;

@@ -3,7 +3,7 @@ import styled from "styled-components";
 import { ProgressBar } from "../StyledComponents";
 import { RenderSteps } from "./steps/RenderSteps";
 import { NavigationButtons } from "./NavigationButtons";
-import { TTSService } from "../../services/TTSService";
+import { TTSService } from "../services/ttsService";
 import browser from "webextension-polyfill";
 
 const TOTAL_STEPS = 3;

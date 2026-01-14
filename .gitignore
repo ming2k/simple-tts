@@ -15,6 +15,6 @@ coverage
 *.crx
 
 # Claude Code files
-CLAUDE.md
-.claude/
-*.claude
+# CLAUDE.md
+# .claude/
+# *.claude

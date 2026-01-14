@@ -2,53 +2,54 @@ import React from 'react';
 import styled from 'styled-components';
 import { Section } from '../common';
 
-const AboutSection = styled.div`
-  margin-bottom: 2rem;
-  padding: 1.5rem;
+const Card = styled.div`
+  margin-bottom: 16px;
+  padding: 16px;
   background: var(--bg-secondary);
-  border-radius: 8px;
-  border: 1px solid var(--border-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 `;
 
-const Title = styled.h3`
-  color: var(--text-primary);
-  font-size: 1.2rem;
-  margin: 0 0 1rem 0;
+const CardTitle = styled.h3`
+  margin: 0 0 10px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
 `;
 
-const Description = styled.p`
+const Text = styled.p`
   color: var(--text-secondary);
   line-height: 1.6;
-  margin: 0.75rem 0;
+  margin: 0 0 8px 0;
+  font-size: 14px;
 `;
 
-const FeatureList = styled.ul`
+const List = styled.ul`
   list-style: none;
   padding: 0;
-  margin: 1rem 0;
+  margin: 8px 0 0 0;
 
   li {
-    margin: 0.75rem 0;
-    padding-left: 1.75rem;
+    margin: 6px 0;
+    padding-left: 16px;
     position: relative;
     color: var(--text-secondary);
+    font-size: 14px;
     line-height: 1.5;
 
     &:before {
-      content: "•";
+      content: "-";
       position: absolute;
-      left: 0.5rem;
-      color: var(--text-accent);
-      font-weight: bold;
+      left: 0;
+      color: var(--text-muted);
     }
   }
 `;
 
 const Link = styled.a`
-  color: var(--text-accent);
+  color: var(--accent);
   text-decoration: none;
-  font-weight: 500;
-  
+
   &:hover {
     text-decoration: underline;
   }
@@ -57,56 +58,47 @@ const Link = styled.a`
 export function About() {
   return (
     <Section>
-      <h2>About Simple TTS</h2>
+      <h2>About</h2>
 
-      <AboutSection>
-        <Title>Open Source Project</Title>
-        <Description>
-          Simple TTS is an open-source browser extension that makes text-to-speech accessible and easy to use. 
-          The project is available on <Link href="https://github.com/ming2k/simple-tts" target="_blank" rel="noopener noreferrer">GitHub</Link>.
-        </Description>
-        <FeatureList>
-          <li>Free and open source software (FOSS)</li>
+      <Card>
+        <CardTitle>Open Source</CardTitle>
+        <Text>
+          Simple TTS is free and open-source. Available on <Link href="https://github.com/ming2k/simple-tts" target="_blank" rel="noopener noreferrer">GitHub</Link>.
+        </Text>
+        <List>
           <li>Community-driven development</li>
           <li>Transparent codebase</li>
-          <li>Welcome contributions and feedback</li>
-        </FeatureList>
-      </AboutSection>
+          <li>Contributions welcome</li>
+        </List>
+      </Card>
 
-      <AboutSection>
-        <Title>Privacy First</Title>
-        <Description>
-          We prioritize your privacy and data security:
-        </Description>
-        <FeatureList>
+      <Card>
+        <CardTitle>Privacy</CardTitle>
+        <Text>Your privacy is our priority:</Text>
+        <List>
           <li>No data collection or tracking</li>
           <li>Direct browser-to-Azure communication</li>
-          <li>Local storage only for your settings</li>
-          <li>No external services except Azure TTS</li>
-        </FeatureList>
-      </AboutSection>
+          <li>Settings stored locally only</li>
+        </List>
+      </Card>
 
-      <AboutSection>
-        <Title>Features</Title>
-        <FeatureList>
-          <li>Convert selected text to speech with one click</li>
-          <li>Support for multiple languages and voices</li>
-          <li>Customizable speech rate and pitch</li>
-          <li>Easy-to-use browser extension interface</li>
+      <Card>
+        <CardTitle>Features</CardTitle>
+        <List>
+          <li>Convert selected text to speech</li>
+          <li>Multiple languages and voices</li>
+          <li>Adjustable speed and pitch</li>
           <li>Context menu integration</li>
-          <li>Keyboard shortcuts support</li>
-        </FeatureList>
-      </AboutSection>
+          <li>Keyboard shortcuts</li>
+        </List>
+      </Card>
 
-      <AboutSection>
-        <Title>Get Involved</Title>
-        <Description>
-          Want to contribute or report issues? Visit our <Link href="https://github.com/ming2k/simple-tts" target="_blank" rel="noopener noreferrer">GitHub repository</Link>.
-        </Description>
-        <Description>
-          For support or questions, please open an issue on GitHub or contact us through the repository.
-        </Description>
-      </AboutSection>
+      <Card>
+        <CardTitle>Get Involved</CardTitle>
+        <Text>
+          Report issues or contribute at our <Link href="https://github.com/ming2k/simple-tts" target="_blank" rel="noopener noreferrer">GitHub repository</Link>.
+        </Text>
+      </Card>
     </Section>
   );
-} 
+}

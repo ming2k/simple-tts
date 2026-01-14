@@ -36,7 +36,7 @@ async function readStoredVoiceSettings(): Promise<VoiceSettings | undefined> {
   return migrateLegacyVoiceSettings(result.languageVoiceSettings);
 }
 
-export async function getStoredVoiceSettings(): Promise<VoiceSettings | undefined> {
+async function getStoredVoiceSettings(): Promise<VoiceSettings | undefined> {
   try {
     return await readStoredVoiceSettings();
   } catch (error) {

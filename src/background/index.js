@@ -1,5 +1,4 @@
 import browser from "webextension-polyfill";
-import { SimpleTTS } from "../services/ttsService";
 import { getVoiceSettingsWithDefaults, saveVoiceSettings } from "../utils/voiceSettingsStorage";
 
 console.log("[Simple TTS] Background script loaded/reloaded");
@@ -153,11 +152,6 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
 
       // Get voice settings (with defaults and legacy migration support)
       const finalVoiceSettings = await getVoiceSettingsWithDefaults();
-
-      const ttsService = new SimpleTTS(
-        settings.azureKey,
-        settings.azureRegion,
-      );
 
       /**
        * CRITICAL: Stop previous audio and clean up mini window BEFORE starting new playback

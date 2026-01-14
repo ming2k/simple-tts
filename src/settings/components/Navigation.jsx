@@ -4,52 +4,48 @@ import styled from 'styled-components';
 const Nav = styled.nav`
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  background: var(--bg-tertiary);
-  padding: 8px;
-  border-radius: 8px;
+  gap: 2px;
 
   @media (max-width: 768px) {
     flex-direction: row;
-    background: none;
-    padding: 0;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
   }
 `;
 
 const TabButton = styled.a`
   display: block;
-  padding: 12px 16px;
-  text-align: left;
-  background: ${props => props.$active ? 'var(--text-accent)' : 'var(--bg-primary)'};
-  border: 1px solid ${props => props.$active ? 'var(--text-accent)' : 'var(--border-secondary)'};
-  border-radius: 6px;
-  cursor: pointer;
+  padding: 10px 14px;
   font-size: 14px;
-  color: ${props => props.$active ? 'var(--text-white)' : 'var(--text-muted)'};
+  font-weight: ${props => props.$active ? '500' : '400'};
+  color: ${props => props.$active ? 'var(--accent)' : 'var(--text-secondary)'};
+  background: ${props => props.$active ? 'var(--bg-hover)' : 'transparent'};
+  border-radius: var(--radius);
   text-decoration: none;
-  transition: all 0.2s ease;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 
   &:hover {
-    background: ${props => props.$active ? 'var(--text-accent)' : 'var(--bg-hover)'};
-    border-color: var(--border-accent);
-    color: ${props => props.$active ? 'var(--text-white)' : 'var(--text-accent)'};
+    background: var(--bg-hover);
+    color: ${props => props.$active ? 'var(--accent)' : 'var(--text)'};
+    text-decoration: none;
   }
 
   @media (max-width: 768px) {
     flex: 1;
-    white-space: nowrap;
     text-align: center;
-    padding: 8px 16px;
+    white-space: nowrap;
+    border-radius: 0;
+    border-bottom: 2px solid ${props => props.$active ? 'var(--accent)' : 'transparent'};
   }
 `;
 
 export function Navigation({ activeTab, onTabChange }) {
   const tabs = [
-    { id: 'api', label: 'API Settings' },
-    { id: 'audio', label: 'Audio Settings' },
-    { id: 'document', label: 'Document' },
+    { id: 'api', label: 'API' },
+    { id: 'audio', label: 'Audio' },
+    { id: 'document', label: 'Docs' },
     { id: 'about', label: 'About' },
     { id: 'sponsor', label: 'Sponsor' }
   ];
@@ -71,4 +67,4 @@ export function Navigation({ activeTab, onTabChange }) {
       ))}
     </Nav>
   );
-} 
+}
