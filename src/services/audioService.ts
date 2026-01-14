@@ -1,122 +1,55 @@
 /**
- * AudioService - Manages audio playback with MediaSource API for streaming TTS
+ * AudioService - Streaming audio playback with MediaSource API
  *
- * State Machine:
- *   None → Playing ⇄ Paused → Ended → (replay) Playing
- *   Any state → stopAudio() → None
- *
- * Key Features:
- * - Streaming playback via MediaSource API (for HTTP/2 chunked responses)
- * - Audio chunk caching for replay without new API calls
- * - Automatic cleanup to prevent memory leaks
- *
- * Public Methods:
- * - playStreamingResponse(): Start new playback (auto-stops current, caches chunks)
- * - replayFromCache():       Replay from cached chunks (no new API request)
- * - pauseAudio/resumeAudio:  Pause/resume current playback
- * - stopAudio():             Stop playback (preserves cache for replay)
- * - clearCache():            Clear cached chunks (prevents replay)
- * - State checks: isPlaying(), isPaused(), hasEnded(), hasCachedAudio()
- *
- * IMPORTANT Design Notes:
- * - Each playback creates a NEW HTMLAudioElement (old ones are cleaned up)
- * - All audio elements have className='simple-tts-audio' for cleanup on extension reload
- * - isStopping flag prevents error events from propagating during intentional stops
- * - Cache is preserved across stop/replay cycle (only cleared explicitly or on new playback)
+ * Features:
+ * - True streaming: audio plays while downloading
+ * - Pause/resume during playback
+ * - Cached replay without re-fetching
  */
 export class AudioService {
-  // Current playback state
-  private currentAudio: HTMLAudioElement | null = null;
-  private currentMediaSource: MediaSource | null = null;
+  private audio: HTMLAudioElement | null = null;
+  private abortController: AbortController | null = null;
 
-  // CRITICAL: Flag to prevent error propagation during intentional stops
-  // Without this, stopping audio would trigger error handlers and reject promises
-  private isStopping: boolean = false;
-
-  private playbackTimeoutId: number | null = null;
-  private currentStreamReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-
-  // Cache for replay functionality (preserves chunks for replay without new API call)
+  // Cache for replay
   private cachedChunks: Uint8Array[] = [];
   private cachedRate: number = 1;
 
-  /**
-   * Stop current audio playback
-   *
-   * CRITICAL PATTERNS:
-   * 1. Set isStopping flag FIRST to prevent error handlers from firing
-   * 2. Store references before clearing to avoid race conditions
-   * 3. Clear this.currentAudio/MediaSource BEFORE cleanup to prevent new operations
-   * 4. Preserve cache for replay (only cleared by clearCache() or new playback)
-   *
-   * WHY THIS ORDER MATTERS:
-   * - If we cleanup before clearing references, new operations could start
-   * - If we don't set isStopping first, cleanup triggers error events
-   */
   async stopAudio(): Promise<void> {
-    // Step 1: Set flag to prevent error propagation during cleanup
-    this.isStopping = true;
-
-    // Step 2: Clear any pending timeouts
-    if (this.playbackTimeoutId !== null) {
-      window.clearTimeout(this.playbackTimeoutId);
-      this.playbackTimeoutId = null;
-    }
-
-    // Step 3: Store references to current audio/MediaSource
-    // IMPORTANT: Store before clearing to avoid race conditions
-    const audio = this.currentAudio;
-    const mediaSource = this.currentMediaSource;
-
-    await this.cancelActiveStream('stopAudio');
-
-    // Step 4: Clear instance references IMMEDIATELY
-    // This prevents new operations from starting during cleanup
-    this.currentAudio = null;
-    this.currentMediaSource = null;
-
-    // NOTE: Cache is intentionally preserved for replay functionality
-    // Call clearCache() explicitly if you want to clear it
-
-    // Step 5: Clean up the stored references
-    this.cleanup(audio, mediaSource);
+    this.abortController?.abort();
+    this.abortController = null;
+    this.cleanup();
   }
 
   pauseAudio(): void {
-    if (this.currentAudio && !this.currentAudio.paused && !this.currentAudio.ended) {
-      this.currentAudio.pause();
+    if (this.audio && !this.audio.paused && !this.audio.ended) {
+      this.audio.pause();
     }
   }
 
   async resumeAudio(): Promise<void> {
-    if (this.currentAudio && this.currentAudio.paused && !this.currentAudio.ended) {
-      try {
-        await this.currentAudio.play();
-      } catch (error) {
-        console.error('Resume audio failed:', error);
-        throw error;
-      }
+    if (this.audio?.paused && !this.audio.ended) {
+      await this.audio.play();
     }
   }
 
   isPlaying(): boolean {
-    return this.currentAudio !== null && !this.currentAudio.paused && !this.currentAudio.ended;
+    return this.audio !== null && !this.audio.paused && !this.audio.ended;
   }
 
   isPaused(): boolean {
-    return this.currentAudio !== null && this.currentAudio.paused && !this.currentAudio.ended;
+    return this.audio !== null && this.audio.paused && !this.audio.ended;
   }
 
   hasEnded(): boolean {
-    return this.currentAudio !== null && this.currentAudio.ended;
+    return this.audio?.ended ?? false;
   }
 
   hasAudio(): boolean {
-    return this.currentAudio !== null && this.currentAudio.src !== '';
+    return this.audio !== null && this.audio.src !== '';
   }
 
   getCurrentAudio(): HTMLAudioElement | null {
-    return this.currentAudio;
+    return this.audio;
   }
 
   hasCachedAudio(): boolean {
@@ -128,694 +61,285 @@ export class AudioService {
     this.cachedRate = 1;
   }
 
-  private async cancelActiveStream(reason: string = 'manual-stop'): Promise<void> {
-    if (!this.currentStreamReader) {
-      return;
+  /**
+   * Play streaming TTS response with MediaSource
+   */
+  async playStreamingResponse(
+    response: Response,
+    rate: number = 1,
+    onProgress?: (progress: { stage: string; progress: number }) => void
+  ): Promise<void> {
+    await this.stopAudio();
+
+    this.cachedChunks = [];
+    this.cachedRate = rate;
+    this.abortController = new AbortController();
+
+    if (!window.MediaSource) {
+      return this.playWithBlob(response, rate, onProgress);
     }
 
-    const reader = this.currentStreamReader;
-    this.currentStreamReader = null;
-
-    try {
-      await reader.cancel(reason);
-    } catch (error: any) {
-      // TypeError occurs if reader is already released; safe to ignore
-      if (error?.name !== 'TypeError') {
-        console.warn('Failed to cancel audio stream reader:', error?.message || error);
-      }
-    }
+    return this.playWithMediaSource(response, rate, this.abortController.signal, onProgress);
   }
 
   /**
-   * Replay audio from cached chunks
-   *
-   * CRITICAL: Cache preservation pattern
-   *
-   * WHY WE NEED TO COPY CACHE BEFORE STOPPING:
-   * - We need to stop current playback before starting replay
-   * - But stopAudio() could potentially clear references
-   * - So we copy cache to local variables FIRST
-   *
-   * CACHE RE-CACHING PATTERN:
-   * - We clear this.cachedChunks before replay
-   * - During playback, handleCachedPlayback() will re-cache chunks
-   * - This ensures cache is always fresh and in sync
-   *
-   * @throws {Error} If no cached audio is available
+   * Replay from cached chunks
    */
   async replayFromCache(): Promise<void> {
     if (!this.hasCachedAudio()) {
-      throw new Error('No cached audio available for replay');
+      throw new Error('No cached audio available');
     }
 
-    // IMPORTANT: Copy cache to local variables BEFORE stopping
-    // stopAudio() doesn't clear cache, but we do this defensively
-    const cachedChunks = [...this.cachedChunks];
-    const cachedRate = this.cachedRate;
-
-    // Stop current playback if any
     await this.stopAudio();
+    this.abortController = new AbortController();
 
-    // Reset stopping flag to allow new playback
-    this.isStopping = false;
+    const blob = new Blob(this.cachedChunks, { type: 'audio/webm; codecs="opus"' });
+    return this.playBlob(blob, this.cachedRate, this.abortController.signal);
+  }
 
-    // Clear cache for re-caching during replay
-    // The handleCachedPlayback() will rebuild the cache
-    this.cachedChunks = [];
-    this.cachedRate = cachedRate;
+  /**
+   * Streaming playback with MediaSource API
+   */
+  private async playWithMediaSource(
+    response: Response,
+    rate: number,
+    signal: AbortSignal,
+    onProgress?: (progress: { stage: string; progress: number }) => void
+  ): Promise<void> {
+    const mediaSource = new MediaSource();
+    const audio = this.createAudio(URL.createObjectURL(mediaSource), rate);
 
-    if (!window.MediaSource) {
-      return this.playCachedBlobFallback(cachedChunks, cachedRate);
-    }
+    return new Promise<void>((resolve, reject) => {
+      if (signal.aborted) {
+        this.cleanup();
+        return resolve();
+      }
 
-    return new Promise((resolve, reject) => {
-      const audio = new Audio();
-      const mediaSource = new MediaSource();
+      const onAbort = () => {
+        this.cleanup();
+        resolve();
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
 
-      // CRITICAL: Mark all TTS audio elements with a className
-      // This allows content script to find and clean up orphaned audio elements
-      // when the extension is reloaded (prevents memory leaks and "ended" event issues)
-      audio.className = 'simple-tts-audio';
-      audio.src = URL.createObjectURL(mediaSource);
-      audio.playbackRate = cachedRate;
-      this.currentAudio = audio;
-      this.currentMediaSource = mediaSource;
+      mediaSource.addEventListener('sourceopen', async () => {
+        try {
+          const sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
+          await this.streamToBuffer(response, sourceBuffer, mediaSource, audio, signal, onProgress);
 
-      mediaSource.addEventListener('sourceopen', () => {
-        this.handleCachedPlayback(cachedChunks, mediaSource, audio)
-          .then(resolve)
-          .catch(reject);
-      });
+          // Wait for playback to complete
+          await this.waitForEnd(audio, signal);
+          signal.removeEventListener('abort', onAbort);
+          resolve();
+        } catch (err: any) {
+          signal.removeEventListener('abort', onAbort);
+          if (signal.aborted || err?.name === 'AbortError') {
+            resolve();
+          } else {
+            reject(err);
+          }
+        }
+      }, { once: true });
 
       audio.onerror = () => {
-        if (!this.isStopping) {
-          this.cleanup(audio, mediaSource);
-          reject(new Error('Audio playback failed'));
-        }
+        signal.removeEventListener('abort', onAbort);
+        reject(new Error('Audio playback failed'));
       };
     });
   }
 
   /**
-   * Play streaming TTS response using MediaSource API
-   *
-   * This method handles HTTP/2 chunked responses and caches chunks for replay.
-   *
-   * IMPORTANT SEQUENCE:
-   * 1. Stop current playback (preserves old cache)
-   * 2. Clear cache for NEW playback (prevents old data from mixing)
-   * 3. Create new audio element
-   * 4. Stream chunks and cache them as they arrive
-   *
-   * @param response - HTTP response with streaming audio data
-   * @param rate - Playback speed (1.0 = normal)
-   * @param onProgress - Optional progress callback
+   * Stream response data to SourceBuffer and start playback
    */
-  async playStreamingResponse(response: Response, rate: number = 1, onProgress: ((progress: any) => void) | null = null): Promise<void> {
-    // Stop current playback before starting new one
-    await this.stopAudio();
-
-    // Reset stopping flag to allow new playback
-    this.isStopping = false;
-
-    // IMPORTANT: Clear cache for fresh playback
-    // Each new playback gets its own cache to prevent data mixing
-    this.cachedChunks = [];
-    this.cachedRate = rate;
-
-    if (!window.MediaSource) {
-      return this.playBlobFallback(response, rate, onProgress);
-    }
-
-    return new Promise((resolve, reject) => {
-      const audio = new Audio();
-      const mediaSource = new MediaSource();
-
-      audio.className = 'simple-tts-audio';
-      audio.src = URL.createObjectURL(mediaSource);
-      audio.playbackRate = rate;
-      this.currentAudio = audio;
-      this.currentMediaSource = mediaSource;
-
-      mediaSource.addEventListener('sourceopen', () => {
-        this.handleStreamingPlayback(response, mediaSource, audio, onProgress)
-          .then(resolve)
-          .catch(reject);
-      });
-
-      audio.onerror = () => {
-        // Don't reject if we're intentionally stopping
-        if (!this.isStopping) {
-          this.cleanup(audio, mediaSource);
-          reject(new Error('Audio playback failed'));
-        }
-      };
-    });
-  }
-
-  private async handleStreamingPlayback(
+  private async streamToBuffer(
     response: Response,
+    sourceBuffer: SourceBuffer,
     mediaSource: MediaSource,
     audio: HTMLAudioElement,
-    onProgress: ((progress: any) => void) | null
+    signal: AbortSignal,
+    onProgress?: (progress: { stage: string; progress: number }) => void
   ): Promise<void> {
-    let sourceBuffer: SourceBuffer | null = null;
-    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+    const reader = response.body!.getReader();
+    const totalSize = parseInt(response.headers.get('content-length') || '0');
+    let receivedSize = 0;
+    let playStarted = false;
 
     try {
-      if (mediaSource.readyState !== 'open') {
-        throw new Error('MediaSource not ready');
-      }
-
-      sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
-      reader = response.body!.getReader();
-      this.currentStreamReader = reader;
-
-      let totalSize = parseInt(response.headers.get('content-length') || '0');
-      let receivedSize = 0;
-      let hasStartedPlaying = false;
-
       while (true) {
-        if (this.isStopping) {
-          console.log('[AudioService] Stop requested - exiting streaming loop');
-          break;
-        }
-
-        // Check if MediaSource is still valid before each operation
-        if (mediaSource.readyState !== 'open') {
-          break;
-        }
+        if (signal.aborted || mediaSource.readyState !== 'open') break;
 
         const { done, value } = await reader.read();
+        if (done) break;
 
-        if (done) {
-          // Only end stream if MediaSource is still open
-          if (mediaSource.readyState === 'open') {
-            try {
-              mediaSource.endOfStream();
-            } catch (e: any) {
-              // Silently ignore - MediaSource state might have changed
-              if (e.name !== 'InvalidStateError') {
-                console.warn('Failed to end MediaSource stream:', e.message);
-              }
-            }
-          }
-          break;
-        }
-
+        // Cache for replay
+        this.cachedChunks.push(new Uint8Array(value));
         receivedSize += value.byteLength;
 
-        // Cache the chunk for replay
-        this.cachedChunks.push(new Uint8Array(value));
-
         if (onProgress && totalSize > 0) {
-          onProgress({
-            stage: 'streaming',
-            progress: Math.round((receivedSize / totalSize) * 100)
-          });
+          onProgress({ stage: 'streaming', progress: Math.round((receivedSize / totalSize) * 100) });
         }
 
-        // Wait for sourceBuffer to be ready with timeout
-        let waitCount = 0;
-        while (sourceBuffer.updating && waitCount < 500) { // Max 5 seconds wait
-          await new Promise(resolve => setTimeout(resolve, 10));
-          waitCount++;
+        // Wait for buffer ready
+        await this.waitForBufferReady(sourceBuffer, mediaSource, signal);
+        if (signal.aborted || mediaSource.readyState !== 'open') break;
 
-          // Check if MediaSource was closed while waiting
-          if (mediaSource.readyState !== 'open') {
-            break;
-          }
+        sourceBuffer.appendBuffer(value);
 
-          if (this.isStopping) {
-            break;
-          }
-        }
-
-        // Only append if MediaSource is still open and sourceBuffer is not updating
-        if (mediaSource.readyState === 'open' && !sourceBuffer.updating) {
-          try {
-            sourceBuffer.appendBuffer(value as BufferSource);
-          } catch (appendError: any) {
-            // MediaSource might have been closed between checks
-            if (appendError.name === 'InvalidStateError') {
-              console.warn('MediaSource became invalid during append:', appendError.message);
-              break;
-            }
-            throw appendError;
-          }
-        } else {
-          break;
-        }
-
-        if (!hasStartedPlaying && audio.readyState >= 3) {
-          hasStartedPlaying = true;
-          try {
-            await audio.play();
-          } catch (playError: any) {
-            console.warn('Play failed, continuing with buffering:', playError.message);
-            // If autoplay failed, we'll try again after user interaction
-            if (playError.name === 'NotAllowedError') {
-              console.log('Autoplay blocked, will require user interaction');
-              setTimeout(() => {
-                if (!this.isStopping && audio.paused && !audio.ended) {
-                  audio.dispatchEvent(new Event('pause'));
-                }
-              }, 0);
-            }
-          }
+        // Start playback once we have some data
+        if (!playStarted && audio.readyState >= 2) {
+          playStarted = true;
+          await audio.play().catch(() => {});
         }
       }
 
-      return new Promise((resolve, reject) => {
-        let resolved = false;
-
-        const cleanupAndResolve = () => {
-          if (resolved) return;
-          resolved = true;
-
-          if (this.playbackTimeoutId !== null) {
-            window.clearTimeout(this.playbackTimeoutId);
-            this.playbackTimeoutId = null;
-          }
-          this.cleanupMediaSource(mediaSource);
-          if (this.currentStreamReader === reader) {
-            this.currentStreamReader = null;
-          }
-          resolve();
-        };
-
-        this.playbackTimeoutId = window.setTimeout(() => {
-          if (!this.isStopping && !resolved) {
-            // Before rejecting, check if audio actually ended
-            const duration = audio.duration;
-            if (audio.ended || (Number.isFinite(duration) && duration > 0 && audio.currentTime >= duration - 0.1)) {
-              cleanupAndResolve();
-            } else {
-              reject(new Error('Audio playback timeout'));
-            }
-          }
-          this.playbackTimeoutId = null;
-        }, 30000) as unknown as number; // 30 second timeout
-
-        audio.onended = () => {
-          console.log('[AudioService] handleStreamingPlayback - audio.onended fired');
-          cleanupAndResolve();
-        };
-
-        // Use timeupdate event as fallback for Firefox compatibility
-        // timeupdate fires periodically during playback (~250ms)
-        audio.ontimeupdate = () => {
-          if (resolved || this.isStopping) return;
-
-          // Check for valid duration (not Infinity or NaN) and if audio has reached the end
-          const duration = audio.duration;
-          if (Number.isFinite(duration) && duration > 0 && audio.currentTime >= duration - 0.1) {
-            console.log('[AudioService] timeupdate detected audio end');
-            cleanupAndResolve();
-          }
-        };
-
-        audio.onerror = () => {
-          if (resolved) return;
-          resolved = true;
-
-          if (this.playbackTimeoutId !== null) {
-            window.clearTimeout(this.playbackTimeoutId);
-            this.playbackTimeoutId = null;
-          }
-          // Don't reject if we're intentionally stopping
-          if (!this.isStopping) {
-            reject(new Error('Audio playback error'));
-          } else {
-            resolve();
-          }
-        };
-      });
-
-    } catch (error: any) {
-      if (reader && error?.name !== 'AbortError') {
-        try {
-          await reader.cancel();
-        } catch (e: any) {
-          console.warn('Failed to cancel reader:', e.message);
-        }
+      // End the stream
+      await this.waitForBufferReady(sourceBuffer, mediaSource, signal);
+      if (mediaSource.readyState === 'open') {
+        mediaSource.endOfStream();
       }
 
-      if (this.currentStreamReader === reader) {
-        this.currentStreamReader = null;
+      // Ensure playback started
+      if (!playStarted && audio.readyState >= 2) {
+        await audio.play().catch(() => {});
       }
-
-      this.cleanup(audio, mediaSource);
-
-      const errorMessage = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
-      if (
-        error?.name === 'AbortError' ||
-        (this.isStopping && (error?.name === 'InvalidStateError' || errorMessage.includes('abort')))
-      ) {
-        return;
-      }
-
-      throw error;
     } finally {
-      if (this.currentStreamReader === reader) {
-        this.currentStreamReader = null;
-      }
+      reader.releaseLock();
     }
   }
 
-  private async handleCachedPlayback(
-    cachedChunks: Uint8Array[],
+  /**
+   * Wait for SourceBuffer to be ready for appending
+   */
+  private async waitForBufferReady(
+    sourceBuffer: SourceBuffer,
     mediaSource: MediaSource,
-    audio: HTMLAudioElement
+    signal: AbortSignal
   ): Promise<void> {
-    let sourceBuffer: SourceBuffer | null = null;
+    while (sourceBuffer.updating && mediaSource.readyState === 'open' && !signal.aborted) {
+      await new Promise(r => setTimeout(r, 10));
+    }
+  }
+
+  /**
+   * Wait for audio to finish playing
+   */
+  private waitForEnd(audio: HTMLAudioElement, signal: AbortSignal): Promise<void> {
+    return new Promise(resolve => {
+      if (audio.ended || signal.aborted) {
+        return resolve();
+      }
+
+      const checkEnd = () => {
+        if (audio.ended || signal.aborted) {
+          audio.removeEventListener('ended', checkEnd);
+          audio.removeEventListener('timeupdate', checkEnd);
+          resolve();
+        } else if (Number.isFinite(audio.duration) && audio.currentTime >= audio.duration - 0.1) {
+          audio.removeEventListener('ended', checkEnd);
+          audio.removeEventListener('timeupdate', checkEnd);
+          resolve();
+        }
+      };
+
+      audio.addEventListener('ended', checkEnd);
+      audio.addEventListener('timeupdate', checkEnd);
+    });
+  }
+
+  /**
+   * Fallback: collect all data then play as Blob
+   */
+  private async playWithBlob(
+    response: Response,
+    rate: number,
+    onProgress?: (progress: { stage: string; progress: number }) => void
+  ): Promise<void> {
+    const reader = response.body!.getReader();
+    const totalSize = parseInt(response.headers.get('content-length') || '0');
+    let receivedSize = 0;
 
     try {
-      if (mediaSource.readyState !== 'open') {
-        throw new Error('MediaSource not ready');
-      }
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
+        this.cachedChunks.push(new Uint8Array(value));
+        receivedSize += value.byteLength;
 
-      // Append all chunks
-      for (let i = 0; i < cachedChunks.length; i++) {
-        const chunk = cachedChunks[i];
-
-        if (mediaSource.readyState !== 'open') {
-          break;
-        }
-
-        // Re-cache the chunk
-        this.cachedChunks.push(chunk);
-
-        // Wait for sourceBuffer to be ready
-        let waitCount = 0;
-        while (sourceBuffer.updating && waitCount < 500) {
-          await new Promise(resolve => setTimeout(resolve, 10));
-          waitCount++;
-
-          if (mediaSource.readyState !== 'open') {
-            break;
-          }
-        }
-
-        // Append chunk if ready
-        if (mediaSource.readyState === 'open' && !sourceBuffer.updating) {
-          try {
-            sourceBuffer.appendBuffer(chunk as BufferSource);
-          } catch (appendError: any) {
-            if (appendError.name === 'InvalidStateError') {
-              console.warn('MediaSource became invalid during append:', appendError.message);
-              break;
-            }
-            throw appendError;
-          }
-        } else {
-          break;
+        if (onProgress && totalSize > 0) {
+          onProgress({ stage: 'streaming', progress: Math.round((receivedSize / totalSize) * 100) });
         }
       }
-
-      // Wait for final buffer update to complete
-      let finalWaitCount = 0;
-      while (sourceBuffer.updating && finalWaitCount < 100) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        finalWaitCount++;
-      }
-
-      // End the stream after all chunks are appended
-      if (mediaSource.readyState === 'open') {
-        try {
-          mediaSource.endOfStream();
-        } catch (e: any) {
-          if (e.name !== 'InvalidStateError') {
-            console.warn('Failed to end MediaSource stream:', e.message);
-          }
-        }
-      }
-
-      return new Promise((resolve, reject) => {
-        let resolved = false;
-
-        const cleanupAndResolve = () => {
-          if (resolved) return;
-          resolved = true;
-
-          if (this.playbackTimeoutId !== null) {
-            window.clearTimeout(this.playbackTimeoutId);
-            this.playbackTimeoutId = null;
-          }
-          this.cleanupMediaSource(mediaSource);
-          resolve();
-        };
-
-        // Check if audio has already ended
-        if (audio.ended) {
-          console.log('[AudioService] handleCachedPlayback - audio already ended');
-          cleanupAndResolve();
-          return;
-        }
-
-        this.playbackTimeoutId = window.setTimeout(() => {
-          if (!this.isStopping && !resolved) {
-            // Before rejecting, check if audio actually ended
-            if (audio.ended || (audio.duration > 0 && audio.currentTime >= audio.duration - 0.1)) {
-              cleanupAndResolve();
-            } else {
-              reject(new Error('Audio playback timeout'));
-            }
-          }
-          this.playbackTimeoutId = null;
-        }, 30000) as unknown as number;
-
-        audio.onended = () => {
-          console.log('[AudioService] handleCachedPlayback - audio.onended fired');
-          cleanupAndResolve();
-        };
-
-        // Use timeupdate event as fallback for Firefox compatibility
-        audio.ontimeupdate = () => {
-          if (resolved || this.isStopping) return;
-
-          // Check for valid duration (not Infinity or NaN)
-          const duration = audio.duration;
-          if (Number.isFinite(duration) && duration > 0 && audio.currentTime >= duration - 0.1) {
-            console.log('[AudioService] timeupdate detected cached audio end');
-            cleanupAndResolve();
-          }
-        };
-
-        audio.onerror = () => {
-          if (resolved) return;
-          resolved = true;
-
-          if (this.playbackTimeoutId !== null) {
-            window.clearTimeout(this.playbackTimeoutId);
-            this.playbackTimeoutId = null;
-          }
-          if (!this.isStopping) {
-            reject(new Error('Audio playback error'));
-          } else {
-            resolve();
-          }
-        };
-
-        // Start playback after setting up event listeners
-        if (audio.paused && !audio.ended) {
-          audio.play().catch((playError: any) => {
-            console.warn('Cached playback failed:', playError.message);
-            if (playError.name !== 'NotAllowedError' && !resolved) {
-              resolved = true;
-              if (this.playbackTimeoutId !== null) {
-                window.clearTimeout(this.playbackTimeoutId);
-                this.playbackTimeoutId = null;
-              }
-              reject(playError);
-            }
-          });
-        }
-      });
-    } catch (error) {
-      this.cleanup(audio, mediaSource);
-      throw error;
-    }
-  }
-
-  private async playCachedBlobFallback(cachedChunks: Uint8Array[], rate: number = 1): Promise<void> {
-    // Combine all cached chunks into a single blob
-    const totalLength = cachedChunks.reduce((acc, chunk) => acc + chunk.byteLength, 0);
-    const combinedArray = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of cachedChunks) {
-      combinedArray.set(chunk, offset);
-      offset += chunk.byteLength;
+    } finally {
+      reader.releaseLock();
     }
 
-    const blob = new Blob([combinedArray], { type: 'audio/webm; codecs="opus"' });
-
-    const audio = new Audio();
-    const objectUrl = URL.createObjectURL(blob);
-
-    audio.className = 'simple-tts-audio';
-    audio.src = objectUrl;
-    audio.playbackRate = rate;
-    this.currentAudio = audio;
-
-    return new Promise((resolve, reject) => {
-      let resolved = false;
-
-      const cleanupAndResolve = () => {
-        if (resolved) return;
-        resolved = true;
-        URL.revokeObjectURL(objectUrl);
-        resolve();
-      };
-
-      audio.onended = () => {
-        cleanupAndResolve();
-      };
-
-      // Use timeupdate event as fallback for Firefox compatibility
-      audio.ontimeupdate = () => {
-        if (resolved || this.isStopping) return;
-
-        const duration = audio.duration;
-        if (Number.isFinite(duration) && duration > 0 && audio.currentTime >= duration - 0.1) {
-          cleanupAndResolve();
-        }
-      };
-
-      audio.onerror = () => {
-        if (resolved) return;
-        resolved = true;
-        URL.revokeObjectURL(objectUrl);
-        if (!this.isStopping) {
-          reject(new Error('Audio playback failed'));
-        } else {
-          resolve();
-        }
-      };
-
-      audio.play().catch((err) => {
-        if (!this.isStopping && !resolved) {
-          resolved = true;
-          URL.revokeObjectURL(objectUrl);
-          reject(err);
-        }
-      });
-    });
+    const blob = new Blob(this.cachedChunks, { type: 'audio/webm; codecs="opus"' });
+    return this.playBlob(blob, rate, this.abortController!.signal);
   }
 
-  private async playBlobFallback(response: Response, rate: number = 1, onProgress: ((progress: any) => void) | null): Promise<void> {
-    const arrayBuffer = await response.arrayBuffer();
-    const blob = new Blob([arrayBuffer], { type: 'audio/webm; codecs="opus"' });
+  /**
+   * Play a Blob URL
+   */
+  private playBlob(blob: Blob, rate: number, signal: AbortSignal): Promise<void> {
+    const url = URL.createObjectURL(blob);
+    const audio = this.createAudio(url, rate);
 
-    const audio = new Audio();
-    const objectUrl = URL.createObjectURL(blob);
-
-    audio.className = 'simple-tts-audio';
-    audio.src = objectUrl;
-    audio.playbackRate = rate;
-    this.currentAudio = audio;
-
-    return new Promise((resolve, reject) => {
-      let resolved = false;
-
-      const cleanupAndResolve = () => {
-        if (resolved) return;
-        resolved = true;
-        URL.revokeObjectURL(objectUrl);
-        resolve();
-      };
-
-      audio.oncanplaythrough = () => {
-        if (onProgress) onProgress({ stage: 'ready', progress: 100 });
-      };
-
-      audio.onended = () => {
-        cleanupAndResolve();
-      };
-
-      // Use timeupdate event as fallback for Firefox compatibility
-      audio.ontimeupdate = () => {
-        if (resolved || this.isStopping) return;
-
-        const duration = audio.duration;
-        if (Number.isFinite(duration) && duration > 0 && audio.currentTime >= duration - 0.1) {
-          cleanupAndResolve();
-        }
-      };
-
-      audio.onerror = () => {
-        if (resolved) return;
-        resolved = true;
-        URL.revokeObjectURL(objectUrl);
-        // Don't reject if we're intentionally stopping
-        if (!this.isStopping) {
-          reject(new Error('Audio playback failed'));
-        } else {
-          resolve();
-        }
-      };
-
-      audio.play().catch((err) => {
-        if (!this.isStopping && !resolved) {
-          resolved = true;
-          URL.revokeObjectURL(objectUrl);
-          reject(err);
-        }
-      });
-    });
-  }
-
-  private cleanupMediaSource(mediaSource: MediaSource | null): void {
-    // Clean up MediaSource only (keep audio element)
-    if (mediaSource) {
-      try {
-        // Only attempt cleanup if MediaSource is still open
-        if (mediaSource.readyState === 'open') {
-          try {
-            // End the stream first before removing buffers
-            mediaSource.endOfStream();
-          } catch (endError: any) {
-            // endOfStream might fail if already ended or in invalid state
-            if (endError.name !== 'InvalidStateError') {
-              console.warn('Failed to end MediaSource stream:', endError.message);
-            }
-          }
-        }
-      } catch (e: any) {
-        // MediaSource might already be closed or in invalid state
-        console.warn('Error cleaning up MediaSource:', e.message);
+    return new Promise<void>((resolve, reject) => {
+      if (signal.aborted) {
+        URL.revokeObjectURL(url);
+        return resolve();
       }
 
-      if (this.currentMediaSource === mediaSource) {
-        this.currentMediaSource = null;
-      }
-    }
-  }
+      const cleanup = () => URL.revokeObjectURL(url);
 
-  private cleanup(audio: HTMLAudioElement | null, mediaSource: MediaSource | null = null): void {
-    // Clean up audio element
-    if (audio) {
-      try {
-        const originalSrc = audio.src;
+      const onAbort = () => {
+        cleanup();
         audio.pause();
-        audio.removeAttribute('src');
-        audio.load(); // Reset the audio element state
+        resolve();
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
 
-        if (originalSrc) {
-          URL.revokeObjectURL(originalSrc);
+      audio.onended = () => {
+        cleanup();
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      };
+
+      audio.onerror = () => {
+        cleanup();
+        signal.removeEventListener('abort', onAbort);
+        reject(new Error('Audio playback failed'));
+      };
+
+      audio.play().catch(err => {
+        cleanup();
+        signal.removeEventListener('abort', onAbort);
+        if (err.name === 'NotAllowedError') {
+          reject(new Error('Autoplay blocked. Click on the page and try again.'));
+        } else {
+          reject(err);
         }
-      } catch (e: any) {
-        console.warn('Error cleaning up audio element:', e.message);
-      }
+      });
+    });
+  }
 
-      if (this.currentAudio === audio) {
-        this.currentAudio = null;
-      }
+  private createAudio(src: string, rate: number): HTMLAudioElement {
+    const audio = new Audio();
+    audio.className = 'simple-tts-audio';
+    audio.src = src;
+    audio.playbackRate = rate;
+    this.audio = audio;
+    return audio;
+  }
+
+  private cleanup(): void {
+    if (this.audio) {
+      const url = this.audio.src;
+      this.audio.pause();
+      this.audio.src = '';
+      this.audio.load();
+      if (url) URL.revokeObjectURL(url);
+      this.audio = null;
     }
-
-    // Clean up MediaSource
-    this.cleanupMediaSource(mediaSource);
   }
 }
