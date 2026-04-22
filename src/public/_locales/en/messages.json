@@ -1,0 +1,22 @@
+{
+  "extName": {
+    "message": "Narravo",
+    "description": "Name of the extension"
+  },
+  "extensionDescription": {
+    "message": "Quick and simple text-to-speech conversion using Azure Speech Service",
+    "description": "Description of the extension"
+  },
+  "contextMenuTitle": {
+    "message": "Read selected text",
+    "description": "Title for the context menu item"
+  },
+  "speakButtonText": {
+    "message": "Speak",
+    "description": "Text for speak button"
+  },
+  "settingsTitle": {
+    "message": "Settings",
+    "description": "Title for settings page"
+  }
+}

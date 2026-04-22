@@ -1,4 +1,4 @@
-# Simple TTS
+# Narravo
 
 A browser extension that provides quick and simple text-to-speech functionality using Azure's high-quality voice synthesis.
 
@@ -14,13 +14,10 @@ A browser extension that provides quick and simple text-to-speech functionality 
 ## Installation
 
 ### Firefox
-[Get it from Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/simple-tts/)
+[![Get the add-on](https://img.shields.io/utils/firefox-addons/v/simple-tts.svg?color=orange&label=Firefox%20Add-on)](https://addons.mozilla.org/en-US/firefox/addon/simple-tts/)
 
 ### Chrome
-
-NEED SOMEONE TO PACKAGE IT!!!
-
-<!-- [Get it from Chrome Web Store](link-to-chrome-store) -->
+[![Available in the Chrome Web Store](https://img.shields.io/badge/Chrome-Web%20Store-blue.svg)](https://chromewebstore.google.com/detail/simple-tts/hhkmldfjckdcopnlfldfbolhhekbendn)
 
 ## Setup
 
@@ -49,15 +46,15 @@ NEED SOMEONE TO PACKAGE IT!!!
 ## Development
 
 ### Prerequisites
-- Node.js (v16 or higher)
+- Node.js (v18 or higher)
 - npm
 
 ### Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/mingsterism/simple-tts.git
-cd simple-tts
+git clone https://github.com/ming2k/narravo.git
+cd narravo
 
 # Install dependencies
 npm install
@@ -74,7 +71,7 @@ npm run build
 
 ### Project Structure
 ```
-simple-tts/
+narravo/
 ├── src/
 │   ├── assets/           # Extension assets (icons, etc)
 │   ├── _locales/         # Internationalization files
