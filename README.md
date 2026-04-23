@@ -1,3 +1,6 @@
+# MIGRATED INTO [narravo](https://github.com/ming2k/narravo)
+# GIT HISTORY BECOME CORRUPTED, PLS CHECK [TAGS](https://github.com/ming2k/narravo/tags) TO GET REAL HISTORY
+
 # Narravo
 
 A browser extension that provides quick and simple text-to-speech functionality using Azure's high-quality voice synthesis.
